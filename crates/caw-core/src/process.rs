@@ -24,8 +24,6 @@ pub struct ProcessScanner {
     system: System,
     last_refresh: Instant,
     cache_duration: Duration,
-    /// Only processes matching watched names are cached.
-    watched_names: HashSet<String>,
     cached: Vec<CachedProcess>,
     ppid_map: HashMap<u32, u32>,
     cmd_map: HashMap<u32, Vec<String>>,
@@ -38,7 +36,6 @@ impl ProcessScanner {
             system: System::new(),
             last_refresh: Instant::now() - Duration::from_secs(60),
             cache_duration: Duration::from_secs(5),
-            watched_names: HashSet::new(),
             cached: Vec::new(),
             ppid_map: HashMap::new(),
             cmd_map: HashMap::new(),
@@ -48,12 +45,28 @@ impl ProcessScanner {
 
     /// Refresh if stale, then return processes matching any of the given names.
     pub fn scan(&mut self, names: &[&str]) -> Vec<ProcessInfo> {
-        // Register names to watch
-        for name in names {
-            self.watched_names.insert(name.to_string());
-        }
-
         self.refresh_if_needed();
+
+        // On macOS, resolve cwd via lsof for matched processes missing it
+        #[cfg(target_os = "macos")]
+        {
+            let missing: Vec<u32> = self.cached
+                .iter()
+                .filter(|p| p.cwd.is_none() && names.iter().any(|n| p.name == *n))
+                .map(|p| p.pid)
+                .collect();
+
+            if !missing.is_empty() {
+                let cwd_map = lsof_cwds(&missing);
+                for info in &mut self.cached {
+                    if info.cwd.is_none() {
+                        if let Some(cwd) = cwd_map.get(&info.pid) {
+                            info.cwd = Some(cwd.clone());
+                        }
+                    }
+                }
+            }
+        }
 
         let matched: Vec<_> = self.cached
             .iter()
@@ -87,59 +100,39 @@ impl ProcessScanner {
             return;
         }
 
+        // Only fetch process name + cwd. Skip CPU, memory, disk, tasks.
+        let refresh_kind = sysinfo::ProcessRefreshKind::nothing()
+            .with_cwd(sysinfo::UpdateKind::OnlyIfNotSet)
+            .with_cmd(sysinfo::UpdateKind::OnlyIfNotSet);
+
         self.system
-            .refresh_processes(sysinfo::ProcessesToUpdate::All, false);
+            .refresh_processes_specifics(sysinfo::ProcessesToUpdate::All, true, refresh_kind);
 
         let mut matched_infos: Vec<CachedProcess> = Vec::new();
         let mut ppid_map: HashMap<u32, u32> = HashMap::new();
         let mut cmd_map: HashMap<u32, Vec<String>> = HashMap::new();
 
-        // Only collect processes matching watched names + their ancestors for app_name resolution
         for (pid, process) in self.system.processes() {
             let pid_u32 = pid.as_u32();
+            let name = process.name().to_string_lossy().to_string();
+            let cwd = process.cwd().map(PathBuf::from);
+            let cmd: Vec<String> = process
+                .cmd()
+                .iter()
+                .map(|s| s.to_string_lossy().to_string())
+                .collect();
 
-            // Always collect ppid/cmd for all (needed for app_name tree walk)
             if let Some(ppid) = process.parent() {
                 ppid_map.insert(pid_u32, ppid.as_u32());
             }
+            cmd_map.insert(pid_u32, cmd.clone());
 
-            let name = process.name().to_string_lossy().to_string();
-
-            if self.watched_names.contains(&name) {
-                let cwd = process.cwd().map(PathBuf::from);
-                let cmd: Vec<String> = process
-                    .cmd()
-                    .iter()
-                    .map(|s| s.to_string_lossy().to_string())
-                    .collect();
-                cmd_map.insert(pid_u32, cmd.clone());
-
-                matched_infos.push(CachedProcess {
-                    pid: pid_u32,
-                    name,
-                    cwd,
-                    cmd,
-                });
-            }
-        }
-
-        // On macOS, resolve cwd only for matched processes (not all)
-        #[cfg(target_os = "macos")]
-        {
-            let missing_cwd_pids: Vec<u32> = matched_infos
-                .iter()
-                .filter(|p| p.cwd.is_none())
-                .map(|p| p.pid)
-                .collect();
-
-            if !missing_cwd_pids.is_empty() {
-                let cwd_map = lsof_cwds(&missing_cwd_pids);
-                for info in &mut matched_infos {
-                    if info.cwd.is_none() {
-                        info.cwd = cwd_map.get(&info.pid).cloned();
-                    }
-                }
-            }
+            matched_infos.push(CachedProcess {
+                pid: pid_u32,
+                name,
+                cwd,
+                cmd,
+            });
         }
 
         // Prune app_name cache for dead PIDs

@@ -4,7 +4,7 @@ use crate::types::{MonitorEvent, NormalizedSession};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
-use tracing::{debug, warn};
+use tracing::warn;
 
 pub struct Monitor {
     sessions: Arc<RwLock<HashMap<String, NormalizedSession>>>,
@@ -52,7 +52,6 @@ impl Monitor {
             match plugin.discover().await {
                 Ok(instances) => {
                     let mut seen_ids = Vec::new();
-
                     for instance in &instances {
                         seen_ids.push(instance.id.clone());
 
@@ -60,7 +59,7 @@ impl Monitor {
                             Ok(Some(s)) => s,
                             Ok(None) => continue,
                             Err(e) => {
-                                debug!("Error reading session {}: {}", instance.id, e);
+                                warn!("Error reading session {}: {}", instance.id, e);
                                 continue;
                             }
                         };

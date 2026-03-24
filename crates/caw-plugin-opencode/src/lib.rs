@@ -3,24 +3,16 @@ use caw_core::process::read_git_branch;
 use caw_core::types::{RawInstance, RawSession, SessionStatus};
 use caw_core::{IPlugin, ProcessScanner};
 use chrono::Utc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub struct OpenCodePlugin {
-    scanner: Mutex<ProcessScanner>,
+    scanner: Arc<Mutex<ProcessScanner>>,
 }
 
 impl OpenCodePlugin {
-    pub fn new() -> Self {
-        Self {
-            scanner: Mutex::new(ProcessScanner::new()),
-        }
-    }
-}
-
-impl Default for OpenCodePlugin {
-    fn default() -> Self {
-        Self::new()
+    pub fn new(scanner: Arc<Mutex<ProcessScanner>>) -> Self {
+        Self { scanner }
     }
 }
 
@@ -35,7 +27,12 @@ impl IPlugin for OpenCodePlugin {
     }
 
     async fn discover(&self) -> anyhow::Result<Vec<RawInstance>> {
-        let processes = self.scanner.lock().unwrap().scan(&["opencode"]);
+        let scanner = self.scanner.clone();
+        let processes = tokio::task::spawn_blocking(move || {
+            scanner.lock().unwrap().scan(&["opencode"])
+        })
+        .await
+        .unwrap_or_default();
 
         let mut instances = Vec::new();
         for proc in processes {
