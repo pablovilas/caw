@@ -83,6 +83,21 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
 fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
     let width = area.width as usize;
     let mut lines: Vec<Line> = Vec::new();
+
+    // Column header
+    let hdr_style = Style::default()
+        .fg(Color::DarkGray)
+        .add_modifier(Modifier::BOLD);
+    let fixed_width = 2 + 10 + 2 + 14 + 2 + 10 + 2 + 10;
+    let msg_width = width.saturating_sub(fixed_width);
+    lines.push(Line::from(vec![
+        Span::styled(format!(" {:<10}", "STATUS"), hdr_style),
+        Span::styled(format!("{:<14}", "PLUGIN"), hdr_style),
+        Span::styled(format!("{:<10}", "APP"), hdr_style),
+        Span::styled(format!("{:<msg_width$}", "LAST MESSAGE"), hdr_style),
+        Span::styled(format!("{:>10}", "TOKENS"), hdr_style),
+    ]));
+
     let mut current_project: Option<PathBuf> = None;
     let mut session_idx: usize = 0;
 
