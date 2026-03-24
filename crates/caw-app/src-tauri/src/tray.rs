@@ -48,6 +48,7 @@ fn build_tray(
 
     let tray = TrayIconBuilder::new()
         .menu(&menu)
+        .show_menu_on_left_click(true)
         .tooltip(&build_tooltip(sessions))
         .on_menu_event(move |app, event| {
             if event.id().as_ref() == "quit" {
