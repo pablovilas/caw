@@ -1,16 +1,10 @@
-mod commands;
 mod tray;
-mod ws;
 
 use caw_core::{Monitor, PluginRegistry, ProcessScanner};
 use caw_plugin_claude::ClaudePlugin;
 use caw_plugin_codex::CodexPlugin;
 use caw_plugin_opencode::OpenCodePlugin;
 use std::sync::{Arc, Mutex};
-
-pub struct AppState {
-    pub monitor: Arc<Monitor>,
-}
 
 fn build_registry() -> PluginRegistry {
     let scanner = Arc::new(Mutex::new(ProcessScanner::new()));
@@ -24,22 +18,14 @@ fn build_registry() -> PluginRegistry {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
-        .with_env_filter("caw=debug")
+        .with_env_filter("caw=info")
         .init();
 
-    // Create a tokio runtime for the monitor and WS server
     let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
 
-    // Monitor must be created inside the runtime context
     let monitor = rt.block_on(async {
         let registry = build_registry();
         Arc::new(Monitor::new(registry))
-    });
-
-    // Start WebSocket server on the runtime
-    let ws_monitor = monitor.clone();
-    rt.spawn(async move {
-        ws::run_ws_server(ws_monitor).await;
     });
 
     // Keep the runtime alive in a background thread
@@ -47,17 +33,8 @@ pub fn run() {
         rt.block_on(std::future::pending::<()>());
     });
 
-    let state = AppState {
-        monitor: monitor.clone(),
-    };
-
     tauri::Builder::default()
-        .plugin(tauri_plugin_autostart::init(
-            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            None,
-        ))
         .plugin(tauri_plugin_shell::init())
-        .manage(state)
         .setup({
             let monitor = monitor.clone();
             move |app| {
@@ -65,9 +42,6 @@ pub fn run() {
                 Ok(())
             }
         })
-        .invoke_handler(tauri::generate_handler![
-            commands::get_sessions,
-        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

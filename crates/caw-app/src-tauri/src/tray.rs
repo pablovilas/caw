@@ -50,16 +50,8 @@ fn build_tray(
         .menu(&menu)
         .tooltip(&build_tooltip(sessions))
         .on_menu_event(move |app, event| {
-            let id = event.id().as_ref();
-            match id {
-                "quit" => app.exit(0),
-                "show" => {
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
-                }
-                _ => {}
+            if event.id().as_ref() == "quit" {
+                app.exit(0);
             }
         })
         .build(app)?;
@@ -161,9 +153,8 @@ fn build_menu(
 
     builder = builder.separator();
 
-    let show = MenuItemBuilder::with_id("show", "Show Window").build(handle)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit caw").build(handle)?;
-    builder = builder.item(&show).separator().item(&quit);
+    builder = builder.item(&quit);
 
     Ok(builder.build()?)
 }
