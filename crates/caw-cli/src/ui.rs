@@ -57,29 +57,28 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
         .count();
 
     let dim = Style::default().fg(Color::DarkGray);
-    let logo = Style::default().fg(Color::White);
+    let logo_s = Style::default().fg(Color::White);
     let bold = Style::default().fg(Color::White).add_modifier(Modifier::BOLD);
 
-    // Crow logo (4 lines) + wordmark + status counts
-    // Logo chars are 13 wide, then text starts at column 16
-    let logo_lines = [
-        "     ▄▄▄▄▄▄▄▄▄",
-        "  ▄█████▄████",
-        " ▄█████████▀",
-        " ▀▀▀██████",
+    // Braille crow logo (4 lines, ~12 chars wide)
+    let logo = [
+        "⠀⠀⠀⠀⣀⣤⣤⣤⣤⣤⣴⠆",
+        "⠀⠀⣴⣾⣿⣿⣿⣾⣿⣿⠇⠀",
+        "⠀⣾⣿⣿⣿⣿⣿⣿⡿⠋⠀⠀",
+        "⠀⠉⠉⣹⠿⠿⠿⠷⠄⠀⠀⠀",
     ];
 
     let lines = vec![
         Line::from(vec![
-            Span::styled(format!("  {:<16}", logo_lines[0]), logo),
+            Span::styled(format!(" {} ", logo[0]), logo_s),
             Span::styled("caw", bold),
         ]),
         Line::from(vec![
-            Span::styled(format!("  {:<16}", logo_lines[1]), logo),
+            Span::styled(format!(" {} ", logo[1]), logo_s),
             Span::styled("coding assistant watcher", dim),
         ]),
         Line::from(vec![
-            Span::styled(format!("  {:<16}", logo_lines[2]), logo),
+            Span::styled(format!(" {} ", logo[2]), logo_s),
             Span::styled(format!("● {} ", working), Style::default().fg(TEAL)),
             Span::styled("working  ", Style::default().fg(TEAL)),
             Span::styled(format!("▲ {} ", waiting), Style::default().fg(AMBER)),
@@ -88,7 +87,7 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
             Span::styled("idle", Style::default().fg(GRAY)),
         ]),
         Line::from(vec![
-            Span::styled(format!("  {:<16}", logo_lines[3]), logo),
+            Span::styled(format!(" {} ", logo[3]), logo_s),
         ]),
     ];
 
