@@ -24,16 +24,13 @@ impl App {
     fn handle_key(&mut self, key: KeyCode) {
         match key {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
-            KeyCode::Char('j') | KeyCode::Down => {
+            KeyCode::Down => {
                 if !self.sessions.is_empty() {
                     self.selected = (self.selected + 1).min(self.sessions.len() - 1);
                 }
             }
-            KeyCode::Char('k') | KeyCode::Up => {
+            KeyCode::Up => {
                 self.selected = self.selected.saturating_sub(1);
-            }
-            KeyCode::Char('h') => {
-                self.show_history = !self.show_history;
             }
             KeyCode::Enter => {
                 self.focus_selected();

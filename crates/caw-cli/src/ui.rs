@@ -154,7 +154,7 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
 
     let block = Block::default()
         .borders(Borders::NONE)
-        .title_bottom(" q:quit  j/k:navigate  enter:focus  h:history ");
+        .title_bottom(" q:quit  ↑/↓:navigate  enter:focus ");
 
     let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, area);
