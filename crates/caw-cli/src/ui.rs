@@ -104,6 +104,7 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
         Span::styled(format!("{:<w$}", "LAST MESSAGE", w = col_msg), h),
         Span::styled(format!("{:>w$}", "TOKENS", w = COL_TOKENS), h),
     ]));
+    lines.push(Line::from(""));
 
     let mut current_project: Option<PathBuf> = None;
     let mut session_idx: usize = 0;
@@ -137,6 +138,7 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
                 ),
                 Span::styled(padding, Style::default().fg(Color::DarkGray)),
             ]));
+            lines.push(Line::from(""));
         }
 
         // Session row
