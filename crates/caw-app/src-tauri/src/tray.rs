@@ -61,12 +61,15 @@ pub fn setup_tray(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let pid_map: SessionPidMap = Arc::new(Mutex::new(HashMap::new()));
     let group_by: GroupByState = Arc::new(Mutex::new(GroupBy::Project));
-    let tray = build_tray(app, &[], &pid_map, &group_by)?;
+    let force_update = Arc::new(tokio::sync::Notify::new());
+
+    let tray = build_tray(app, &[], &pid_map, &group_by, &force_update)?;
 
     let handle = app.handle().clone();
     let tray_id = tray.id().clone();
     let update_group_by = group_by.clone();
     let update_pid_map = pid_map.clone();
+    let update_notify = force_update.clone();
     rt.spawn(async move {
         let mut rx = monitor.subscribe();
 
@@ -75,16 +78,25 @@ pub fn setup_tray(
         let _ = update_tray(&handle, &tray_id, &sessions, &update_pid_map, &update_group_by);
 
         loop {
-            match rx.recv().await {
-                Ok(_) => {
-                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-                    while rx.try_recv().is_ok() {}
-
+            tokio::select! {
+                // Normal monitor events — debounce 10s
+                result = rx.recv() => {
+                    match result {
+                        Ok(_) => {
+                            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                            while rx.try_recv().is_ok() {}
+                            let sessions = monitor.snapshot().await;
+                            let _ = update_tray(&handle, &tray_id, &sessions, &update_pid_map, &update_group_by);
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                        Err(_) => break,
+                    }
+                }
+                // Forced update (grouping changed) — immediate
+                _ = update_notify.notified() => {
                     let sessions = monitor.snapshot().await;
                     let _ = update_tray(&handle, &tray_id, &sessions, &update_pid_map, &update_group_by);
                 }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
-                Err(_) => break,
             }
         }
     });
@@ -97,6 +109,7 @@ fn build_tray(
     sessions: &[NormalizedSession],
     pid_map: &SessionPidMap,
     group_by: &GroupByState,
+    force_update: &Arc<tokio::sync::Notify>,
 ) -> Result<TrayIcon, Box<dyn std::error::Error>> {
     let current_group = *group_by.lock().unwrap();
     let menu = build_menu(app, sessions, pid_map, current_group)?;
@@ -105,6 +118,7 @@ fn build_tray(
 
     let pid_map = pid_map.clone();
     let group_by = group_by.clone();
+    let force_update = force_update.clone();
     let tray = TrayIconBuilder::new()
         .icon(icon)
         .icon_as_template(true)
@@ -118,8 +132,7 @@ fn build_tray(
                 _ if GroupBy::from_id(id).is_some() => {
                     let new_group = GroupBy::from_id(id).unwrap();
                     *group_by.lock().unwrap() = new_group;
-                    // Force immediate menu rebuild
-                    // (next tray update will pick it up)
+                    force_update.notify_one();
                 }
                 _ => {
                     if let Some(&pid) = pid_map.lock().unwrap().get(id) {
@@ -139,11 +152,9 @@ fn build_tooltip(sessions: &[NormalizedSession]) -> String {
     if sessions.is_empty() {
         return "caw — no sessions".to_string();
     }
-
     let working = sessions.iter().filter(|s| s.status == SessionStatus::Working).count();
     let waiting = sessions.iter().filter(|s| s.status == SessionStatus::WaitingInput).count();
     let idle = sessions.iter().filter(|s| s.status == SessionStatus::Idle).count();
-
     format!("caw — {} working, {} waiting, {} idle", working, waiting, idle)
 }
 
@@ -162,7 +173,6 @@ fn build_menu(
             .build(handle)?;
         builder = builder.item(&empty);
     } else {
-        // Summary
         let working = sessions.iter().filter(|s| s.status == SessionStatus::Working).count();
         let waiting = sessions.iter().filter(|s| s.status == SessionStatus::WaitingInput).count();
         let idle = sessions.iter().filter(|s| s.status == SessionStatus::Idle).count();
@@ -174,7 +184,6 @@ fn build_menu(
         builder = builder.item(&summary_item).separator();
 
         if group_by == GroupBy::None {
-            // Flat list sorted by status
             let mut sorted: Vec<_> = sessions.iter().collect();
             sorted.sort_by_key(|s| status_ord(&s.status));
 
@@ -187,16 +196,13 @@ fn build_menu(
                     session.display_name,
                     session.app_name.as_deref().unwrap_or(""),
                 );
-
                 if let Some(pid) = session.pid {
                     new_pid_map.insert(menu_id.clone(), pid);
                 }
-
                 let item = MenuItemBuilder::with_id(&menu_id, label).build(handle)?;
                 builder = builder.item(&item);
             }
         } else {
-            // Grouped
             let mut groups: HashMap<String, Vec<&NormalizedSession>> = HashMap::new();
             for session in sessions {
                 groups.entry(group_by.group_key(session)).or_default().push(session);
@@ -223,8 +229,6 @@ fn build_menu(
 
                 for session in group_sessions {
                     let menu_id = format!("session-{}", session.id);
-
-                    // Show fields NOT in the group header
                     let label = match group_by {
                         GroupBy::Project => format!(
                             "  {} {}  {}",
@@ -250,7 +254,6 @@ fn build_menu(
                     if let Some(pid) = session.pid {
                         new_pid_map.insert(menu_id.clone(), pid);
                     }
-
                     let item = MenuItemBuilder::with_id(&menu_id, label).build(handle)?;
                     builder = builder.item(&item);
                 }
@@ -258,7 +261,6 @@ fn build_menu(
         }
     }
 
-    // Group by submenu
     builder = builder.separator();
 
     let check = |g: GroupBy| if g == group_by { "  ✓" } else { "" };
