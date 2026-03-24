@@ -91,14 +91,8 @@ pub fn discover_claude_instances(processes: Vec<ProcessInfo>) -> Vec<RawInstance
             .to_string_lossy()
             .to_string();
 
-        // Deduplicate: one instance per (project, app_name)
-        let mut seen_apps: std::collections::HashSet<String> = std::collections::HashSet::new();
+        // One instance per process
         for proc in procs {
-            let app_key = proc.app_name.clone().unwrap_or_else(|| proc.pid.to_string());
-            if !seen_apps.insert(app_key) {
-                continue;
-            }
-
             let working_dir = proc.cwd.clone().unwrap_or_default();
             let git_branch = read_git_branch(&working_dir);
 
