@@ -17,7 +17,7 @@ impl GroupBy {
         match self {
             Self::Project => "project",
             Self::App => "app",
-            Self::Plugin => "plugin",
+            Self::Plugin => "assistant",
             Self::None => "none",
         }
     }

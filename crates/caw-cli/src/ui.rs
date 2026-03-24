@@ -95,7 +95,7 @@ fn columns_for(group_by: GroupBy) -> Vec<Col> {
     let mut cols = vec![Col { name: "STATUS", width: 14, align_right: false }];
 
     if group_by != GroupBy::Plugin {
-        cols.push(Col { name: "PLUGIN", width: 18, align_right: false });
+        cols.push(Col { name: "ASSISTANT", width: 18, align_right: false });
     }
     if group_by != GroupBy::App {
         cols.push(Col { name: "APP", width: 12, align_right: false });
@@ -210,7 +210,7 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
                     let label = format!("{} {}", session.status.symbol(), session.status.label());
                     (format!(" {:<w$}", label, w = col.width - 1), style.fg(sc))
                 }
-                "PLUGIN" => (
+                "ASSISTANT" => (
                     format!("{:<w$}", session.display_name, w = col.width),
                     style,
                 ),
