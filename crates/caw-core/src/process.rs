@@ -14,11 +14,20 @@ pub struct ProcessInfo {
     pub app_name: Option<String>,
 }
 
+struct CachedProcess {
+    pid: u32,
+    name: String,
+    cwd: Option<PathBuf>,
+    cmd: Vec<String>,
+}
+
 pub struct ProcessScanner {
     system: System,
     last_refresh: Instant,
     cache_duration: Duration,
-    cached: Vec<ProcessInfo>,
+    cached: Vec<CachedProcess>,
+    ppid_map: HashMap<u32, u32>,
+    cmd_map: HashMap<u32, Vec<String>>,
 }
 
 impl ProcessScanner {
@@ -28,16 +37,29 @@ impl ProcessScanner {
             last_refresh: Instant::now() - Duration::from_secs(60),
             cache_duration: Duration::from_secs(2),
             cached: Vec::new(),
+            ppid_map: HashMap::new(),
+            cmd_map: HashMap::new(),
         }
     }
 
     /// Refresh if stale, then return processes matching any of the given names.
+    /// App name is resolved only for matched processes (not all).
     pub fn scan(&mut self, names: &[&str]) -> Vec<ProcessInfo> {
         self.refresh_if_needed();
+
         self.cached
             .iter()
             .filter(|p| names.iter().any(|n| p.name == *n))
-            .cloned()
+            .map(|p| {
+                let app_name = resolve_app_name(p.pid, &self.ppid_map, &self.cmd_map);
+                ProcessInfo {
+                    pid: p.pid,
+                    name: p.name.clone(),
+                    cwd: p.cwd.clone(),
+                    cmd: p.cmd.clone(),
+                    app_name,
+                }
+            })
             .collect()
     }
 
@@ -49,37 +71,30 @@ impl ProcessScanner {
         self.system
             .refresh_processes(sysinfo::ProcessesToUpdate::All, true);
 
-        let mut infos: Vec<ProcessInfo> = Vec::new();
-
-        // Collect parent PID mapping for app_name resolution
+        let mut infos: Vec<CachedProcess> = Vec::new();
         let mut ppid_map: HashMap<u32, u32> = HashMap::new();
         let mut cmd_map: HashMap<u32, Vec<String>> = HashMap::new();
 
         for (pid, process) in self.system.processes() {
             let pid_u32 = pid.as_u32();
-            if let Some(ppid) = process.parent() {
-                ppid_map.insert(pid_u32, ppid.as_u32());
-            }
+            let name = process.name().to_string_lossy().to_string();
+            let cwd = process.cwd().map(PathBuf::from);
             let cmd: Vec<String> = process
                 .cmd()
                 .iter()
                 .map(|s| s.to_string_lossy().to_string())
                 .collect();
-            cmd_map.insert(pid_u32, cmd);
-        }
 
-        for (pid, process) in self.system.processes() {
-            let name = process.name().to_string_lossy().to_string();
-            let cwd = process.cwd().map(PathBuf::from);
-            let cmd = cmd_map.get(&pid.as_u32()).cloned().unwrap_or_default();
-            let app_name = resolve_app_name(pid.as_u32(), &ppid_map, &cmd_map);
+            if let Some(ppid) = process.parent() {
+                ppid_map.insert(pid_u32, ppid.as_u32());
+            }
+            cmd_map.insert(pid_u32, cmd.clone());
 
-            infos.push(ProcessInfo {
-                pid: pid.as_u32(),
+            infos.push(CachedProcess {
+                pid: pid_u32,
                 name,
                 cwd,
                 cmd,
-                app_name,
             });
         }
 
@@ -103,6 +118,8 @@ impl ProcessScanner {
         }
 
         self.cached = infos;
+        self.ppid_map = ppid_map;
+        self.cmd_map = cmd_map;
         self.last_refresh = Instant::now();
     }
 }
@@ -113,21 +130,23 @@ impl Default for ProcessScanner {
     }
 }
 
-/// Walk the process tree via sysinfo's parent PID data to find the host .app bundle.
+/// Walk the process tree to find the host .app bundle.
+/// Uses sysinfo's cached data first, falls back to ps on macOS.
 fn resolve_app_name(
     pid: u32,
     ppid_map: &HashMap<u32, u32>,
     cmd_map: &HashMap<u32, Vec<String>>,
 ) -> Option<String> {
-    // First check the process's own cmd for an .app path
+    // Check the process's own cmd
     if let Some(cmd) = cmd_map.get(&pid) {
-        let cmd_str = cmd.first().unwrap_or(&String::new()).clone();
-        if let Some(app) = extract_app_display_name(&cmd_str) {
-            return Some(app);
+        if let Some(first) = cmd.first() {
+            if let Some(app) = extract_app_display_name(first) {
+                return Some(app);
+            }
         }
     }
 
-    // Walk up parent chain
+    // Walk up parent chain using sysinfo data
     let mut current = pid;
     for _ in 0..20 {
         let ppid = match ppid_map.get(&current) {
@@ -136,9 +155,10 @@ fn resolve_app_name(
         };
 
         if let Some(cmd) = cmd_map.get(&ppid) {
-            let cmd_str = cmd.first().unwrap_or(&String::new()).clone();
-            if let Some(app) = extract_app_display_name(&cmd_str) {
-                return Some(app);
+            if let Some(first) = cmd.first() {
+                if let Some(app) = extract_app_display_name(first) {
+                    return Some(app);
+                }
             }
         }
 
@@ -170,8 +190,6 @@ fn resolve_app_name_via_ps(pid: u32) -> Option<String> {
             break;
         }
 
-        // Parse "  ppid command..."
-        let line = line.trim();
         let (ppid_str, cmd) = line.split_once(char::is_whitespace)?;
         let ppid: u32 = ppid_str.trim().parse().ok()?;
 
@@ -180,7 +198,6 @@ fn resolve_app_name_via_ps(pid: u32) -> Option<String> {
         }
 
         if ppid <= 1 {
-            // Check PID 1's parent too
             let output = Command::new("ps")
                 .args(["-o", "command=", "-p", &ppid.to_string()])
                 .output()
@@ -194,17 +211,12 @@ fn resolve_app_name_via_ps(pid: u32) -> Option<String> {
 }
 
 /// Extract a human-readable app name from a command path containing ".app".
-/// "/Applications/iTerm.app/Contents/MacOS/iTerm2" → "iTerm"
-/// "/Applications/Visual Studio Code.app/..." → "VS Code"
 fn extract_app_display_name(cmd: &str) -> Option<String> {
     let idx = cmd.find(".app")?;
     let app_path = &cmd[..idx + 4];
-
-    // Get the filename of the .app bundle
     let bundle_name = app_path.rsplit('/').next().unwrap_or(app_path);
     let name = bundle_name.strip_suffix(".app").unwrap_or(bundle_name);
 
-    // Friendly display names
     let display = match name {
         "iTerm" | "iTerm2" => "iTerm",
         "Visual Studio Code" | "Code" => "VS Code",
