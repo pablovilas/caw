@@ -9,10 +9,6 @@
   "app": {
     "withGlobalTauri": false,
     "windows": [],
-    "trayIcon": {
-      "iconPath": "icons/tray.png",
-      "iconAsTemplate": true
-    },
     "security": {
       "csp": null
     }

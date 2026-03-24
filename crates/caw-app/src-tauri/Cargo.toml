@@ -12,7 +12,7 @@ caw-core = { path = "../../caw-core" }
 caw-plugin-claude = { path = "../../caw-plugin-claude" }
 caw-plugin-codex = { path = "../../caw-plugin-codex" }
 caw-plugin-opencode = { path = "../../caw-plugin-opencode" }
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-shell = "2"
 tokio = { version = "1", features = ["full"] }

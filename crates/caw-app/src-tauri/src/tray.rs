@@ -46,7 +46,11 @@ fn build_tray(
 ) -> Result<TrayIcon, Box<dyn std::error::Error>> {
     let menu = build_menu(app, sessions)?;
 
+    let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?.to_owned();
+
     let tray = TrayIconBuilder::new()
+        .icon(icon)
+        .icon_as_template(true)
         .menu(&menu)
         .show_menu_on_left_click(true)
         .tooltip(&build_tooltip(sessions))
