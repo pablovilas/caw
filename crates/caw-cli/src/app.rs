@@ -1,13 +1,42 @@
 use caw_core::{Monitor, MonitorEvent, NormalizedSession, PluginRegistry, SessionStatus};
-use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind};
+use crossterm::event::{Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use futures_util::StreamExt;
 use ratatui::DefaultTerminal;
 use std::time::Duration;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GroupBy {
+    Project,
+    App,
+    Plugin,
+    None,
+}
+
+impl GroupBy {
+    pub fn label(&self) -> &str {
+        match self {
+            Self::Project => "project",
+            Self::App => "app",
+            Self::Plugin => "plugin",
+            Self::None => "none",
+        }
+    }
+
+    fn next(self) -> Self {
+        match self {
+            Self::Project => Self::App,
+            Self::App => Self::Plugin,
+            Self::Plugin => Self::None,
+            Self::None => Self::Project,
+        }
+    }
+}
 
 pub struct App {
     pub sessions: Vec<NormalizedSession>,
     pub selected: usize,
     pub should_quit: bool,
+    pub group_by: GroupBy,
 }
 
 impl App {
@@ -16,11 +45,22 @@ impl App {
             sessions: Vec::new(),
             selected: 0,
             should_quit: false,
+            group_by: GroupBy::Project,
         }
     }
 
-    fn handle_key(&mut self, key: KeyCode) {
-        match key {
+    pub fn handle_key_event(&mut self, key: KeyEvent) {
+        if key.kind != KeyEventKind::Press {
+            return;
+        }
+
+        // Ctrl+C
+        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            self.should_quit = true;
+            return;
+        }
+
+        match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
             KeyCode::Down => {
                 if !self.sessions.is_empty() {
@@ -32,6 +72,10 @@ impl App {
             }
             KeyCode::Enter => {
                 self.focus_selected();
+            }
+            KeyCode::Char('g') => {
+                self.group_by = self.group_by.next();
+                self.sort_sessions();
             }
             _ => {}
         }
@@ -54,24 +98,68 @@ impl App {
         }
     }
 
+    pub fn group_key(&self, s: &NormalizedSession) -> String {
+        match self.group_by {
+            GroupBy::Project => s.project_path.to_string_lossy().to_string(),
+            GroupBy::App => s.app_name.clone().unwrap_or_else(|| "-".to_string()),
+            GroupBy::Plugin => s.plugin.clone(),
+            GroupBy::None => String::new(),
+        }
+    }
+
+    pub fn group_header(&self, s: &NormalizedSession) -> String {
+        match self.group_by {
+            GroupBy::Project => {
+                let branch = s
+                    .git_branch
+                    .as_deref()
+                    .map(|b| format!(" @{}", b))
+                    .unwrap_or_default();
+                format!("{}{}", s.project_name, branch)
+            }
+            GroupBy::App => s.app_name.clone().unwrap_or_else(|| "-".to_string()),
+            GroupBy::Plugin => s.display_name.clone(),
+            GroupBy::None => String::new(),
+        }
+    }
+
     fn sort_sessions(&mut self) {
-        // Compute best status per project for group ordering
-        let mut best_per_project: std::collections::HashMap<std::path::PathBuf, u8> =
+        if self.group_by == GroupBy::None {
+            self.sessions
+                .sort_by_key(|s| Self::status_ord(&s.status));
+            return;
+        }
+
+        // Compute best status per group
+        let mut best_per_group: std::collections::HashMap<String, u8> =
             std::collections::HashMap::new();
         for s in &self.sessions {
+            let key = self.group_key(s);
             let ord = Self::status_ord(&s.status);
-            best_per_project
-                .entry(s.project_path.clone())
+            best_per_group
+                .entry(key)
                 .and_modify(|v| *v = (*v).min(ord))
                 .or_insert(ord);
         }
 
-        // Sort: group best status, then project path, then individual status
+        let group_by = self.group_by;
         self.sessions.sort_by(|a, b| {
-            let ga = best_per_project.get(&a.project_path).unwrap_or(&3);
-            let gb = best_per_project.get(&b.project_path).unwrap_or(&3);
+            let ka = match group_by {
+                GroupBy::Project => a.project_path.to_string_lossy().to_string(),
+                GroupBy::App => a.app_name.clone().unwrap_or_default(),
+                GroupBy::Plugin => a.plugin.clone(),
+                GroupBy::None => String::new(),
+            };
+            let kb = match group_by {
+                GroupBy::Project => b.project_path.to_string_lossy().to_string(),
+                GroupBy::App => b.app_name.clone().unwrap_or_default(),
+                GroupBy::Plugin => b.plugin.clone(),
+                GroupBy::None => String::new(),
+            };
+            let ga = best_per_group.get(&ka).unwrap_or(&3);
+            let gb = best_per_group.get(&kb).unwrap_or(&3);
             ga.cmp(gb)
-                .then(a.project_path.cmp(&b.project_path))
+                .then(ka.cmp(&kb))
                 .then(Self::status_ord(&a.status).cmp(&Self::status_ord(&b.status)))
         });
     }
@@ -113,6 +201,7 @@ pub async fn run_tui(registry: PluginRegistry) -> anyhow::Result<()> {
 
     let mut app = App::new();
     app.sessions = monitor.snapshot().await;
+    app.sort_sessions();
 
     let mut terminal = ratatui::init();
     terminal.clear()?;
@@ -136,16 +225,12 @@ async fn run_event_loop(
         let mut needs_redraw = false;
 
         tokio::select! {
-            // Keyboard/terminal events — immediate response
             Some(Ok(event)) = event_stream.next() => {
                 if let Event::Key(key) = event {
-                    if key.kind == KeyEventKind::Press {
-                        app.handle_key(key.code);
-                        needs_redraw = true;
-                    }
+                    app.handle_key_event(key);
+                    needs_redraw = true;
                 }
             }
-            // Monitor events
             result = rx.recv() => {
                 match result {
                     Ok(monitor_event) => {
