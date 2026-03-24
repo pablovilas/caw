@@ -4,20 +4,17 @@ mod session;
 
 use async_trait::async_trait;
 use caw_core::types::{RawInstance, RawSession};
-use caw_core::IPlugin;
+use caw_core::{IPlugin, ProcessScanner};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-pub struct ClaudePlugin;
-
-impl ClaudePlugin {
-    pub fn new() -> Self {
-        Self
-    }
+pub struct ClaudePlugin {
+    scanner: Arc<Mutex<ProcessScanner>>,
 }
 
-impl Default for ClaudePlugin {
-    fn default() -> Self {
-        Self::new()
+impl ClaudePlugin {
+    pub fn new(scanner: Arc<Mutex<ProcessScanner>>) -> Self {
+        Self { scanner }
     }
 }
 
@@ -32,7 +29,8 @@ impl IPlugin for ClaudePlugin {
     }
 
     async fn discover(&self) -> anyhow::Result<Vec<RawInstance>> {
-        Ok(process::discover_claude_instances())
+        let processes = self.scanner.lock().unwrap().scan(&["claude"]);
+        Ok(process::discover_claude_instances(processes))
     }
 
     async fn read_session(&self, id: &str) -> anyhow::Result<Option<RawSession>> {

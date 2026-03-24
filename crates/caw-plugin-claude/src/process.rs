@@ -1,105 +1,18 @@
+use caw_core::process::read_git_branch;
 use caw_core::types::RawInstance;
+use caw_core::ProcessInfo;
 use chrono::Utc;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::process::Command;
-
-#[derive(Debug, Clone)]
-pub struct ClaudeProcess {
-    pub pid: u32,
-    pub cwd: Option<PathBuf>,
-}
-
-/// Get all running claude CLI processes with their cwd.
-pub fn get_claude_processes() -> Vec<ClaudeProcess> {
-    let pids = pgrep("claude");
-    if pids.is_empty() {
-        return Vec::new();
-    }
-
-    let cwd_map = get_cwds_via_lsof(&pids);
-
-    pids.iter()
-        .map(|&pid| ClaudeProcess {
-            pid,
-            cwd: cwd_map.get(&pid).cloned(),
-        })
-        .collect()
-}
-
-/// Find PIDs by exact process name using pgrep (lightweight, no full process scan).
-fn pgrep(name: &str) -> Vec<u32> {
-    let Ok(output) = Command::new("pgrep").args(["-x", name]).output() else {
-        return Vec::new();
-    };
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter_map(|l| l.trim().parse().ok())
-        .collect()
-}
-
-fn get_cwds_via_lsof(pids: &[u32]) -> HashMap<u32, PathBuf> {
-    let mut map = HashMap::new();
-    if pids.is_empty() {
-        return map;
-    }
-
-    let pid_arg = pids
-        .iter()
-        .map(|p| p.to_string())
-        .collect::<Vec<_>>()
-        .join(",");
-
-    let Ok(output) = Command::new("lsof")
-        .args(["-a", "-d", "cwd", "-p", &pid_arg, "-Fn"])
-        .output()
-    else {
-        return map;
-    };
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut current_pid: Option<u32> = None;
-
-    for line in stdout.lines() {
-        if let Some(pid_str) = line.strip_prefix('p') {
-            current_pid = pid_str.parse().ok();
-        } else if let Some(name) = line.strip_prefix('n') {
-            if let Some(pid) = current_pid {
-                map.insert(pid, PathBuf::from(name));
-            }
-        }
-    }
-
-    map
-}
 
 /// Encode a filesystem path the same way Claude does for project dir names.
-/// "/Users/pablo/Projects/caw" → "-Users-pablo-Projects-caw"
-fn read_git_branch(working_dir: &std::path::Path) -> Option<String> {
-    let output = Command::new("git")
-        .args(["rev-parse", "--abbrev-ref", "HEAD"])
-        .current_dir(working_dir)
-        .output()
-        .ok()?;
-
-    if !output.status.success() {
-        return None;
-    }
-
-    let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if branch.is_empty() || branch == "HEAD" {
-        None
-    } else {
-        Some(branch)
-    }
-}
-
 fn encode_path(path: &std::path::Path) -> String {
     path.to_string_lossy().replace('/', "-")
 }
 
 /// Discover Claude Code instances by matching running processes to session dirs.
-pub fn discover_claude_instances() -> Vec<RawInstance> {
+/// Takes pre-scanned process list from the shared ProcessScanner.
+pub fn discover_claude_instances(processes: Vec<ProcessInfo>) -> Vec<RawInstance> {
     let projects_dir = match dirs::home_dir() {
         Some(h) => h.join(".claude").join("projects"),
         None => return Vec::new(),
@@ -109,10 +22,8 @@ pub fn discover_claude_instances() -> Vec<RawInstance> {
         return Vec::new();
     }
 
-    let processes = get_claude_processes();
-
-    // Build map: encoded cwd → first process found (one instance per project)
-    let mut encoded_to_process: HashMap<String, &ClaudeProcess> = HashMap::new();
+    // Build map: encoded cwd → first process (one instance per project)
+    let mut encoded_to_process: HashMap<String, &ProcessInfo> = HashMap::new();
     for proc in &processes {
         if let Some(cwd) = &proc.cwd {
             let encoded = encode_path(cwd);
@@ -170,9 +81,7 @@ pub fn discover_claude_instances() -> Vec<RawInstance> {
             .to_string_lossy()
             .to_string();
 
-        let matched = encoded_to_process.get(dir_name.as_str());
-
-        let Some(proc) = matched else {
+        let Some(proc) = encoded_to_process.get(dir_name.as_str()) else {
             continue;
         };
 

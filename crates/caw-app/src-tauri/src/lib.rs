@@ -2,21 +2,22 @@ mod commands;
 mod tray;
 mod ws;
 
-use caw_core::{Monitor, PluginRegistry};
+use caw_core::{Monitor, PluginRegistry, ProcessScanner};
 use caw_plugin_claude::ClaudePlugin;
 use caw_plugin_codex::CodexPlugin;
 use caw_plugin_opencode::OpenCodePlugin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 pub struct AppState {
     pub monitor: Arc<Monitor>,
 }
 
 fn build_registry() -> PluginRegistry {
+    let scanner = Arc::new(Mutex::new(ProcessScanner::new()));
     let mut registry = PluginRegistry::new();
-    registry.register(Arc::new(ClaudePlugin::new()));
-    registry.register(Arc::new(CodexPlugin::new()));
-    registry.register(Arc::new(OpenCodePlugin::new()));
+    registry.register(Arc::new(ClaudePlugin::new(scanner.clone())));
+    registry.register(Arc::new(CodexPlugin::new(scanner.clone())));
+    registry.register(Arc::new(OpenCodePlugin::new(scanner)));
     registry
 }
 
