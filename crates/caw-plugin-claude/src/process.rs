@@ -83,21 +83,24 @@ pub fn discover_claude_instances(processes: Vec<ProcessInfo>) -> Vec<RawInstance
         // Sort by most recent first
         active_sessions.sort_by(|a, b| b.1.cmp(&a.1));
 
-        // Get working dir and git branch from a process (if available)
-        let (working_dir, git_branch) = if let Some(procs) = procs {
-            if let Some(proc) = procs.first() {
-                let wd = proc.cwd.clone().unwrap_or_default();
-                let branch = read_git_branch(&wd);
-                (wd, branch)
-            } else {
-                (PathBuf::new(), None)
-            }
-        } else {
-            (PathBuf::new(), None)
+        let num_procs = procs.map(|p| p.len()).unwrap_or(0);
+
+        // Only show as many sessions as there are running processes.
+        // If no processes, skip entirely (dead project).
+        if num_procs == 0 {
+            continue;
+        }
+        active_sessions.truncate(num_procs);
+
+        // Get working dir and git branch from a process
+        let (working_dir, git_branch) = {
+            let proc = &procs.unwrap()[0];
+            let wd = proc.cwd.clone().unwrap_or_default();
+            let branch = read_git_branch(&wd);
+            (wd, branch)
         };
 
-        // Create one instance per active JSONL file
-        // Assign processes round-robin (best effort — we can't map PID to session)
+        // One instance per session, assign processes 1:1
         for (i, (session_path, _modified)) in active_sessions.iter().enumerate() {
             let session_id = session_path
                 .file_stem()
@@ -105,17 +108,9 @@ pub fn discover_claude_instances(processes: Vec<ProcessInfo>) -> Vec<RawInstance
                 .to_string_lossy()
                 .to_string();
 
-            // Pick a process for this session (round-robin across available processes)
-            let (pid, app_name) = if let Some(procs) = procs {
-                if !procs.is_empty() {
-                    let proc = procs[i % procs.len()];
-                    (Some(proc.pid), proc.app_name.clone())
-                } else {
-                    (None, None)
-                }
-            } else {
-                (None, None)
-            };
+            let proc = procs.unwrap()[i];
+            let pid = Some(proc.pid);
+            let app_name = proc.app_name.clone();
 
             instances.push(RawInstance {
                 id: session_id,
