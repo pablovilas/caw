@@ -56,31 +56,29 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
         .filter(|s| s.status == SessionStatus::Idle)
         .count();
 
-    let header = Line::from(vec![
-        Span::styled(
-            "  caw ",
-            Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            "coding assistant watcher",
-            Style::default().fg(Color::DarkGray),
-        ),
-        Span::raw("   "),
-        Span::styled(format!("● {}", working), Style::default().fg(TEAL)),
-        Span::styled(" working  ", Style::default().fg(TEAL)),
-        Span::styled(format!("▲ {}", waiting), Style::default().fg(AMBER)),
-        Span::styled(" waiting  ", Style::default().fg(AMBER)),
-        Span::styled(format!("◉ {}", idle), Style::default().fg(GRAY)),
-        Span::styled(" idle", Style::default().fg(GRAY)),
-    ]);
+    let dim = Style::default().fg(Color::DarkGray);
+    let crow = Style::default().fg(Color::White);
+
+    let lines = vec![
+        Line::from(vec![
+            Span::styled("  ╱▶ ", crow),
+            Span::styled("caw ", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled("coding assistant watcher", dim),
+            Span::raw("   "),
+            Span::styled(format!("● {} ", working), Style::default().fg(TEAL)),
+            Span::styled("working  ", Style::default().fg(TEAL)),
+            Span::styled(format!("▲ {} ", waiting), Style::default().fg(AMBER)),
+            Span::styled("waiting  ", Style::default().fg(AMBER)),
+            Span::styled(format!("◉ {} ", idle), Style::default().fg(GRAY)),
+            Span::styled("idle", Style::default().fg(GRAY)),
+        ]),
+    ];
 
     let block = Block::default()
         .borders(Borders::BOTTOM)
-        .border_style(Style::default().fg(Color::DarkGray));
+        .border_style(dim);
 
-    let paragraph = Paragraph::new(header).block(block);
+    let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, area);
 }
 
