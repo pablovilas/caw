@@ -157,7 +157,7 @@ fn parse_session_file(path: &Path, instance_id: &str) -> anyhow::Result<Option<R
         instance_id: instance_id.to_string(),
         status,
         last_message,
-        git_branch: None,
+        git_branch: None, // populated from instance.extra in from_raw
         token_usage: Some(total_usage),
         extra: serde_json::json!({ "model": model }),
     }))

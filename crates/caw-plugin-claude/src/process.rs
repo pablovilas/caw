@@ -75,6 +75,25 @@ fn get_cwds_via_lsof(pids: &[u32]) -> HashMap<u32, PathBuf> {
 
 /// Encode a filesystem path the same way Claude does for project dir names.
 /// "/Users/pablo/Projects/caw" → "-Users-pablo-Projects-caw"
+fn read_git_branch(working_dir: &std::path::Path) -> Option<String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .current_dir(working_dir)
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if branch.is_empty() || branch == "HEAD" {
+        None
+    } else {
+        Some(branch)
+    }
+}
+
 fn encode_path(path: &std::path::Path) -> String {
     path.to_string_lossy().replace('/', "-")
 }
@@ -163,13 +182,17 @@ pub fn discover_claude_instances() -> Vec<RawInstance> {
             .to_string_lossy()
             .to_string();
 
+        let working_dir = proc.cwd.clone().unwrap_or_default();
+        let git_branch = read_git_branch(&working_dir);
+
         instances.push(RawInstance {
             id: session_id,
             pid: Some(proc.pid),
-            working_dir: proc.cwd.clone().unwrap_or_default(),
+            working_dir,
             started_at: Utc::now(),
             extra: serde_json::json!({
                 "session_file": session_path.to_string_lossy(),
+                "git_branch": git_branch,
             }),
         });
     }

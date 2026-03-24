@@ -136,7 +136,8 @@ impl NormalizedSession {
             project_name,
             status,
             last_message: session.last_message.clone(),
-            git_branch: session.git_branch.clone(),
+            git_branch: session.git_branch.clone()
+                .or_else(|| instance.extra.get("git_branch").and_then(|v| v.as_str()).map(String::from)),
             model: session.extra.get("model").and_then(|v| v.as_str()).map(String::from),
             token_usage: session.token_usage.clone().unwrap_or_default(),
             started_at: instance.started_at,
