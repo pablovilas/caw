@@ -1,5 +1,4 @@
 mod app;
-mod focus;
 mod ui;
 
 use caw_core::{PluginRegistry, ProcessScanner};

@@ -1,4 +1,5 @@
 pub mod error;
+pub mod focus;
 pub mod monitor;
 pub mod plugin;
 pub mod process;

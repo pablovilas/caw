@@ -84,7 +84,7 @@ impl App {
     fn focus_selected(&self) {
         if let Some(session) = self.sessions.get(self.selected) {
             if let Some(pid) = session.pid {
-                crate::focus::focus_terminal_for_pid(pid);
+                caw_core::focus::focus_terminal_for_pid(pid);
             }
         }
     }
