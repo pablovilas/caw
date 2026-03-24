@@ -139,14 +139,18 @@ fn parse_session_file(path: &Path, instance_id: &str) -> anyhow::Result<Option<R
 
     let recent = age.as_secs() < 30;
 
-    let status = if state.last_stop_reason.as_deref() == Some("end_turn") && !recent {
-        // Assistant finished its turn and nothing happened since
-        SessionStatus::Idle
-    } else if recent {
+    let status = if recent {
         // File was written to recently — assistant is working or about to
         SessionStatus::Working
+    } else if state.last_stop_reason.as_deref() == Some("end_turn") {
+        // Assistant finished its turn cleanly
+        SessionStatus::Idle
     } else if state.last_role.as_deref() == Some("user") {
-        // Last entry was user, not recent — waiting for input or stale
+        // Last entry was user — waiting for assistant to respond
+        SessionStatus::WaitingInput
+    } else if state.last_role.as_deref() == Some("assistant") {
+        // Assistant stopped without end_turn (tool_use, permission prompt, etc.)
+        // → needs user action
         SessionStatus::WaitingInput
     } else {
         SessionStatus::Idle
