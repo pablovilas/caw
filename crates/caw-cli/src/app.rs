@@ -8,7 +8,6 @@ pub struct App {
     pub sessions: Vec<NormalizedSession>,
     pub selected: usize,
     pub should_quit: bool,
-    pub show_history: bool,
 }
 
 impl App {
@@ -17,7 +16,6 @@ impl App {
             sessions: Vec::new(),
             selected: 0,
             should_quit: false,
-            show_history: false,
         }
     }
 
