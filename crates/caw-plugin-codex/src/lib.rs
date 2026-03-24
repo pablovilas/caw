@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
-use sysinfo::System;
 
 pub struct CodexPlugin;
 
@@ -35,17 +34,7 @@ impl IPlugin for CodexPlugin {
     }
 
     async fn discover(&self) -> anyhow::Result<Vec<RawInstance>> {
-        let mut sys = System::new();
-        sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-
-        let mut pids = Vec::new();
-        for (pid, process) in sys.processes() {
-            let name = process.name().to_string_lossy().to_string();
-            if name == "codex" || name.starts_with("codex") {
-                pids.push(pid.as_u32());
-            }
-        }
-
+        let pids = pgrep("codex");
         if pids.is_empty() {
             return Ok(Vec::new());
         }
@@ -80,7 +69,7 @@ impl IPlugin for CodexPlugin {
     }
 
     fn poll_interval(&self) -> Duration {
-        Duration::from_secs(3)
+        Duration::from_secs(5)
     }
 }
 
@@ -113,6 +102,16 @@ fn get_cwds_via_lsof(pids: &[u32]) -> HashMap<u32, PathBuf> {
     }
 
     map
+}
+
+fn pgrep(name: &str) -> Vec<u32> {
+    let Ok(output) = Command::new("pgrep").args(["-x", name]).output() else {
+        return Vec::new();
+    };
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|l| l.trim().parse().ok())
+        .collect()
 }
 
 fn read_git_branch(working_dir: &std::path::Path) -> Option<String> {

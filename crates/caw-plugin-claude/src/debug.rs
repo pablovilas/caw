@@ -1,5 +1,4 @@
 use crate::process;
-use sysinfo::System;
 
 pub fn debug_processes() {
     let procs = process::get_claude_processes();
@@ -19,15 +18,5 @@ pub fn debug_processes() {
             inst.working_dir.display(),
             branch
         );
-    }
-
-    eprintln!("\n=== Codex/OpenCode processes (sysinfo) ===");
-    let mut sys = System::new();
-    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-    for (pid, process) in sys.processes() {
-        let name = process.name().to_string_lossy().to_string();
-        if name == "codex" || name.starts_with("codex") || name == "opencode" || name.starts_with("opencode") {
-            eprintln!("  PID={} name={}", pid.as_u32(), name);
-        }
     }
 }

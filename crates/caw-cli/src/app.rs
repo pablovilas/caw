@@ -1,5 +1,6 @@
 use caw_core::{Monitor, MonitorEvent, NormalizedSession, PluginRegistry, SessionStatus};
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind};
+use futures_util::StreamExt;
 use ratatui::DefaultTerminal;
 use std::time::Duration;
 
@@ -70,7 +71,6 @@ impl App {
             }
         }
 
-        // Sort: working first, then waiting, then idle, then dead
         self.sessions.sort_by_key(|s| match s.status {
             SessionStatus::Working => 0,
             SessionStatus::WaitingInput => 1,
@@ -78,7 +78,6 @@ impl App {
             SessionStatus::Dead => 3,
         });
 
-        // Clamp selection
         if !self.sessions.is_empty() {
             self.selected = self.selected.min(self.sessions.len() - 1);
         }
@@ -89,7 +88,6 @@ pub async fn run_tui(registry: PluginRegistry) -> anyhow::Result<()> {
     let monitor = Monitor::new(registry);
     let mut rx = monitor.subscribe();
 
-    // Wait briefly for initial discovery
     tokio::time::sleep(Duration::from_millis(300)).await;
 
     let mut app = App::new();
@@ -109,24 +107,38 @@ async fn run_event_loop(
     app: &mut App,
     rx: &mut tokio::sync::broadcast::Receiver<MonitorEvent>,
 ) -> anyhow::Result<()> {
-    loop {
-        terminal.draw(|frame| crate::ui::draw(frame, app))?;
+    let mut event_stream = EventStream::new();
 
-        // Poll for events with timeout
+    terminal.draw(|frame| crate::ui::draw(frame, app))?;
+
+    loop {
+        let mut needs_redraw = false;
+
         tokio::select! {
-            _ = tokio::time::sleep(Duration::from_millis(100)) => {
-                // Check for crossterm events (non-blocking)
-                if event::poll(Duration::from_millis(0))? {
-                    if let Event::Key(key) = event::read()? {
-                        if key.kind == KeyEventKind::Press {
-                            app.handle_key(key.code);
-                        }
+            // Keyboard/terminal events — immediate response
+            Some(Ok(event)) = event_stream.next() => {
+                if let Event::Key(key) = event {
+                    if key.kind == KeyEventKind::Press {
+                        app.handle_key(key.code);
+                        needs_redraw = true;
                     }
                 }
             }
-            Ok(monitor_event) = rx.recv() => {
-                app.apply_event(monitor_event);
+            // Monitor events
+            result = rx.recv() => {
+                match result {
+                    Ok(monitor_event) => {
+                        app.apply_event(monitor_event);
+                        needs_redraw = true;
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                    Err(_) => break,
+                }
             }
+        }
+
+        if needs_redraw {
+            terminal.draw(|frame| crate::ui::draw(frame, app))?;
         }
 
         if app.should_quit {

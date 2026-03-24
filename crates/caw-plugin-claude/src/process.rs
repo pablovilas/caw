@@ -3,7 +3,6 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
-use sysinfo::System;
 
 #[derive(Debug, Clone)]
 pub struct ClaudeProcess {
@@ -13,17 +12,7 @@ pub struct ClaudeProcess {
 
 /// Get all running claude CLI processes with their cwd.
 pub fn get_claude_processes() -> Vec<ClaudeProcess> {
-    let mut sys = System::new();
-    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-
-    let mut pids = Vec::new();
-    for (pid, process) in sys.processes() {
-        let name = process.name().to_string_lossy().to_string();
-        if name == "claude" {
-            pids.push(pid.as_u32());
-        }
-    }
-
+    let pids = pgrep("claude");
     if pids.is_empty() {
         return Vec::new();
     }
@@ -35,6 +24,17 @@ pub fn get_claude_processes() -> Vec<ClaudeProcess> {
             pid,
             cwd: cwd_map.get(&pid).cloned(),
         })
+        .collect()
+}
+
+/// Find PIDs by exact process name using pgrep (lightweight, no full process scan).
+fn pgrep(name: &str) -> Vec<u32> {
+    let Ok(output) = Command::new("pgrep").args(["-x", name]).output() else {
+        return Vec::new();
+    };
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|l| l.trim().parse().ok())
         .collect()
 }
 
