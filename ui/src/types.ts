@@ -21,6 +21,7 @@ export interface NormalizedSession {
   started_at: string;
   last_seen: string;
   pid: number | null;
+  app_name: string | null;
 }
 
 export type MonitorEvent =
@@ -49,14 +50,3 @@ export const STATUS_LABELS: Record<SessionStatus, string> = {
   Idle: "idle",
   Dead: "dead",
 };
-
-export function totalTokens(usage: TokenUsage): number {
-  return usage.input + usage.output + usage.cache_read + usage.cache_write;
-}
-
-export function formatTokens(total: number): string {
-  if (total === 0) return "-";
-  if (total > 1_000_000) return `${(total / 1_000_000).toFixed(1)}M`;
-  if (total > 1_000) return `${(total / 1_000).toFixed(1)}k`;
-  return `${total}`;
-}

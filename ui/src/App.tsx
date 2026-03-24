@@ -1,16 +1,10 @@
 import { useState, useMemo } from "react";
 import { useSessions } from "./hooks/useWebSocket";
-import { StatusBar } from "./components/StatusBar";
-import { SessionCard } from "./components/SessionCard";
-import { PluginFilter } from "./components/PluginFilter";
-import type { SessionStatus } from "./types";
-
-const STATUS_ORDER: Record<SessionStatus, number> = {
-  Working: 0,
-  WaitingInput: 1,
-  Idle: 2,
-  Dead: 3,
-};
+import { useGroupedSessions } from "./hooks/useGroupedSessions";
+import { Header } from "./components/Header";
+import { FilterBar } from "./components/FilterBar";
+import { SessionTable } from "./components/SessionTable";
+import { EmptyState } from "./components/EmptyState";
 
 function App() {
   const { sessions, connected } = useSessions();
@@ -21,13 +15,7 @@ function App() {
     [sessions],
   );
 
-  const filtered = useMemo(() => {
-    let result = sessions;
-    if (activePlugins.size > 0) {
-      result = result.filter((s) => activePlugins.has(s.display_name));
-    }
-    return result.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
-  }, [sessions, activePlugins]);
+  const groups = useGroupedSessions(sessions, activePlugins);
 
   const togglePlugin = (plugin: string) => {
     setActivePlugins((prev) => {
@@ -40,21 +28,17 @@ function App() {
 
   return (
     <div className="app">
-      <StatusBar sessions={sessions} connected={connected} />
-      <PluginFilter plugins={plugins} activePlugins={activePlugins} onToggle={togglePlugin} />
-      <main className="session-grid">
-        {filtered.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon">&#x1F426;&#x200D;&#x2B1B;</div>
-            <p>No coding assistants detected</p>
-            <p className="empty-hint">Start a Claude Code, Codex, or OpenCode session</p>
-          </div>
-        ) : (
-          filtered.map((session) => (
-            <SessionCard key={`${session.plugin}:${session.id}`} session={session} />
-          ))
-        )}
-      </main>
+      <Header sessions={sessions} connected={connected} />
+      <FilterBar
+        plugins={plugins}
+        activePlugins={activePlugins}
+        onToggle={togglePlugin}
+      />
+      {groups.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <SessionTable groups={groups} />
+      )}
     </div>
   );
 }
