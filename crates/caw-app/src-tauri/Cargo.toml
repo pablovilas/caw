@@ -1,0 +1,28 @@
+[package]
+name = "caw-app"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+caw-core = { path = "../../caw-core" }
+caw-plugin-claude = { path = "../../caw-plugin-claude" }
+caw-plugin-codex = { path = "../../caw-plugin-codex" }
+caw-plugin-opencode = { path = "../../caw-plugin-opencode" }
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-shell = "2"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio-tungstenite = "0.26"
+futures-util = "0.3"
+
+[lib]
+name = "caw_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
