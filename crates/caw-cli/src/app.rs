@@ -50,6 +50,37 @@ impl App {
         }
     }
 
+    fn status_ord(status: &SessionStatus) -> u8 {
+        match status {
+            SessionStatus::Working => 0,
+            SessionStatus::WaitingInput => 1,
+            SessionStatus::Idle => 2,
+            SessionStatus::Dead => 3,
+        }
+    }
+
+    fn sort_sessions(&mut self) {
+        // Compute best status per project for group ordering
+        let mut best_per_project: std::collections::HashMap<std::path::PathBuf, u8> =
+            std::collections::HashMap::new();
+        for s in &self.sessions {
+            let ord = Self::status_ord(&s.status);
+            best_per_project
+                .entry(s.project_path.clone())
+                .and_modify(|v| *v = (*v).min(ord))
+                .or_insert(ord);
+        }
+
+        // Sort: group best status, then project path, then individual status
+        self.sessions.sort_by(|a, b| {
+            let ga = best_per_project.get(&a.project_path).unwrap_or(&3);
+            let gb = best_per_project.get(&b.project_path).unwrap_or(&3);
+            ga.cmp(gb)
+                .then(a.project_path.cmp(&b.project_path))
+                .then(Self::status_ord(&a.status).cmp(&Self::status_ord(&b.status)))
+        });
+    }
+
     fn apply_event(&mut self, event: MonitorEvent) {
         match event {
             MonitorEvent::Added(session) | MonitorEvent::Updated(session) => {
@@ -71,12 +102,7 @@ impl App {
             }
         }
 
-        self.sessions.sort_by_key(|s| match s.status {
-            SessionStatus::Working => 0,
-            SessionStatus::WaitingInput => 1,
-            SessionStatus::Idle => 2,
-            SessionStatus::Dead => 3,
-        });
+        self.sort_sessions();
 
         if !self.sessions.is_empty() {
             self.selected = self.selected.min(self.sessions.len() - 1);
