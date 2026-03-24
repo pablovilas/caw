@@ -10,8 +10,13 @@ fn encode_path(path: &std::path::Path) -> String {
     path.to_string_lossy().replace('/', "-")
 }
 
-/// Discover Claude Code instances by matching running processes to session dirs.
-/// Creates one instance per process — if two processes share a project, both appear.
+/// Discover Claude Code sessions.
+///
+/// Each active JSONL file = one session row. Processes provide liveness info
+/// (PID, app name) but the JSONL file is the source of truth for sessions.
+/// A project may have multiple active sessions (different JSONL files) and
+/// multiple processes — we can't reliably map PID → JSONL, so we pick a
+/// process to associate with each session for the focus feature.
 pub fn discover_claude_instances(processes: Vec<ProcessInfo>) -> Vec<RawInstance> {
     let projects_dir = match dirs::home_dir() {
         Some(h) => h.join(".claude").join("projects"),
@@ -22,7 +27,7 @@ pub fn discover_claude_instances(processes: Vec<ProcessInfo>) -> Vec<RawInstance
         return Vec::new();
     }
 
-    // Build map: encoded cwd → all processes with that cwd
+    // Build map: encoded cwd → processes
     let mut encoded_to_processes: HashMap<String, Vec<&ProcessInfo>> = HashMap::new();
     for proc in &processes {
         if let Some(cwd) = &proc.cwd {
@@ -31,7 +36,6 @@ pub fn discover_claude_instances(processes: Vec<ProcessInfo>) -> Vec<RawInstance
         }
     }
 
-    // Collect recent session files per project dir
     let mut instances = Vec::new();
 
     let Ok(project_entries) = std::fs::read_dir(&projects_dir) else {
@@ -44,67 +48,84 @@ pub fn discover_claude_instances(processes: Vec<ProcessInfo>) -> Vec<RawInstance
             continue;
         }
 
-        // Find the most recently modified .jsonl file
-        let mut best_session: Option<(PathBuf, std::time::SystemTime)> = None;
-
-        let Ok(files) = std::fs::read_dir(&project_path) else {
-            continue;
-        };
-
-        for file in files.flatten() {
-            let path = file.path();
-            if path.extension().is_some_and(|e| e == "jsonl") {
-                if let Ok(meta) = path.metadata() {
-                    if let Ok(modified) = meta.modified() {
-                        if best_session.as_ref().is_none_or(|(_, t)| modified > *t) {
-                            best_session = Some((path, modified));
-                        }
-                    }
-                }
-            }
-        }
-
-        let Some((session_path, modified)) = best_session else {
-            continue;
-        };
-
-        let age = std::time::SystemTime::now()
-            .duration_since(modified)
-            .unwrap_or_default();
-        if age.as_secs() > 3600 {
-            continue;
-        }
-
         let dir_name = project_path
             .file_name()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
 
-        let Some(procs) = encoded_to_processes.get(dir_name.as_str()) else {
+        // Get processes for this project (if any)
+        let procs = encoded_to_processes.get(dir_name.as_str());
+
+        // Collect ALL active JSONL files (modified in last hour)
+        let Ok(files) = std::fs::read_dir(&project_path) else {
             continue;
         };
 
-        let session_id = session_path
-            .file_stem()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
+        let mut active_sessions: Vec<(PathBuf, std::time::SystemTime)> = Vec::new();
 
-        // One instance per process
-        for proc in procs {
-            let working_dir = proc.cwd.clone().unwrap_or_default();
-            let git_branch = read_git_branch(&working_dir);
+        for file in files.flatten() {
+            let path = file.path();
+            if path.extension().is_some_and(|e| e == "jsonl") {
+                if let Ok(meta) = path.metadata() {
+                    if let Ok(modified) = meta.modified() {
+                        let age = std::time::SystemTime::now()
+                            .duration_since(modified)
+                            .unwrap_or_default();
+                        if age.as_secs() < 3600 {
+                            active_sessions.push((path, modified));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort by most recent first
+        active_sessions.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // Get working dir and git branch from a process (if available)
+        let (working_dir, git_branch) = if let Some(procs) = procs {
+            if let Some(proc) = procs.first() {
+                let wd = proc.cwd.clone().unwrap_or_default();
+                let branch = read_git_branch(&wd);
+                (wd, branch)
+            } else {
+                (PathBuf::new(), None)
+            }
+        } else {
+            (PathBuf::new(), None)
+        };
+
+        // Create one instance per active JSONL file
+        // Assign processes round-robin (best effort — we can't map PID to session)
+        for (i, (session_path, _modified)) in active_sessions.iter().enumerate() {
+            let session_id = session_path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+
+            // Pick a process for this session (round-robin across available processes)
+            let (pid, app_name) = if let Some(procs) = procs {
+                if !procs.is_empty() {
+                    let proc = procs[i % procs.len()];
+                    (Some(proc.pid), proc.app_name.clone())
+                } else {
+                    (None, None)
+                }
+            } else {
+                (None, None)
+            };
 
             instances.push(RawInstance {
-                id: format!("{}-{}", session_id, proc.pid),
-                pid: Some(proc.pid),
-                working_dir,
+                id: session_id,
+                pid,
+                working_dir: working_dir.clone(),
                 started_at: Utc::now(),
                 extra: serde_json::json!({
                     "session_file": session_path.to_string_lossy(),
                     "git_branch": git_branch,
-                    "app_name": proc.app_name,
+                    "app_name": app_name,
                 }),
             });
         }

@@ -40,14 +40,7 @@ pub fn read_session(session_id: &str) -> anyhow::Result<Option<RawSession>> {
         return Ok(None);
     }
 
-    // ID format is "{uuid}-{pid}" — strip the pid suffix to get the JSONL filename
-    // UUIDs are 36 chars (8-4-4-4-12).
-    let file_stem = if session_id.len() > 36 {
-        &session_id[..36]
-    } else {
-        session_id
-    };
-    let session_file = find_session_file(&projects_dir, file_stem);
+    let session_file = find_session_file(&projects_dir, session_id);
     let Some(path) = session_file else {
         return Ok(None);
     };
