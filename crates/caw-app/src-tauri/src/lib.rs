@@ -21,7 +21,7 @@ pub fn run() {
         .with_env_filter("caw=info")
         .init();
 
-    let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+    let rt = Arc::new(tokio::runtime::Runtime::new().expect("failed to create tokio runtime"));
 
     let monitor = rt.block_on(async {
         let registry = build_registry();
@@ -29,8 +29,9 @@ pub fn run() {
     });
 
     // Keep the runtime alive in a background thread
+    let rt_bg = rt.clone();
     std::thread::spawn(move || {
-        rt.block_on(std::future::pending::<()>());
+        rt_bg.block_on(std::future::pending::<()>());
     });
 
     tauri::Builder::default()
@@ -45,7 +46,7 @@ pub fn run() {
                     app.set_activation_policy(ActivationPolicy::Accessory);
                 }
 
-                tray::setup_tray(app, monitor)?;
+                tray::setup_tray(app, monitor, rt.clone())?;
                 Ok(())
             }
         })

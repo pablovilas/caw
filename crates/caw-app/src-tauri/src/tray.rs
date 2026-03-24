@@ -13,32 +13,34 @@ type SessionPidMap = Arc<Mutex<HashMap<String, u32>>>;
 pub fn setup_tray(
     app: &App,
     monitor: Arc<Monitor>,
+    rt: Arc<tokio::runtime::Runtime>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let pid_map: SessionPidMap = Arc::new(Mutex::new(HashMap::new()));
     let tray = build_tray(app, &[], &pid_map)?;
 
     let handle = app.handle().clone();
     let tray_id = tray.id().clone();
-    std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async move {
-            let mut rx = monitor.subscribe();
+    rt.spawn(async move {
+        let mut rx = monitor.subscribe();
 
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            let sessions = monitor.snapshot().await;
-            let _ = update_tray(&handle, &tray_id, &sessions, &pid_map);
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        let sessions = monitor.snapshot().await;
+        let _ = update_tray(&handle, &tray_id, &sessions, &pid_map);
 
-            loop {
-                match rx.recv().await {
-                    Ok(_) => {
-                        let sessions = monitor.snapshot().await;
-                        let _ = update_tray(&handle, &tray_id, &sessions, &pid_map);
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
-                    Err(_) => break,
+        loop {
+            match rx.recv().await {
+                Ok(_) => {
+                    // Debounce: drain all pending events, then update once
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    while rx.try_recv().is_ok() {}
+
+                    let sessions = monitor.snapshot().await;
+                    let _ = update_tray(&handle, &tray_id, &sessions, &pid_map);
                 }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                Err(_) => break,
             }
-        });
+        }
     });
 
     Ok(())

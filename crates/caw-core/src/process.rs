@@ -28,6 +28,7 @@ pub struct ProcessScanner {
     cached: Vec<CachedProcess>,
     ppid_map: HashMap<u32, u32>,
     cmd_map: HashMap<u32, Vec<String>>,
+    app_name_cache: HashMap<u32, Option<String>>,
 }
 
 impl ProcessScanner {
@@ -39,6 +40,7 @@ impl ProcessScanner {
             cached: Vec::new(),
             ppid_map: HashMap::new(),
             cmd_map: HashMap::new(),
+            app_name_cache: HashMap::new(),
         }
     }
 
@@ -47,11 +49,22 @@ impl ProcessScanner {
     pub fn scan(&mut self, names: &[&str]) -> Vec<ProcessInfo> {
         self.refresh_if_needed();
 
-        self.cached
+        let matched: Vec<_> = self.cached
             .iter()
             .filter(|p| names.iter().any(|n| p.name == *n))
+            .collect();
+
+        // Resolve app_name only for new PIDs not in cache
+        for p in &matched {
+            if !self.app_name_cache.contains_key(&p.pid) {
+                let name = resolve_app_name(p.pid, &self.ppid_map, &self.cmd_map);
+                self.app_name_cache.insert(p.pid, name);
+            }
+        }
+
+        matched.into_iter()
             .map(|p| {
-                let app_name = resolve_app_name(p.pid, &self.ppid_map, &self.cmd_map);
+                let app_name = self.app_name_cache.get(&p.pid).cloned().flatten();
                 ProcessInfo {
                     pid: p.pid,
                     name: p.name.clone(),
@@ -116,6 +129,10 @@ impl ProcessScanner {
                 }
             }
         }
+
+        // Prune app_name cache for dead PIDs
+        let live_pids: std::collections::HashSet<u32> = infos.iter().map(|p| p.pid).collect();
+        self.app_name_cache.retain(|pid, _| live_pids.contains(pid));
 
         self.cached = infos;
         self.ppid_map = ppid_map;
