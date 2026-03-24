@@ -82,20 +82,27 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
 
 fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
     let width = area.width as usize;
+
+    // Column widths (consistent between header and data)
+    const COL_STATUS: usize = 12;
+    const COL_PLUGIN: usize = 16;
+    const COL_APP: usize = 10;
+    const COL_TOKENS: usize = 10;
+    let col_fixed = COL_STATUS + COL_PLUGIN + COL_APP + COL_TOKENS;
+    let col_msg = width.saturating_sub(col_fixed);
+
     let mut lines: Vec<Line> = Vec::new();
 
     // Column header
-    let hdr_style = Style::default()
+    let h = Style::default()
         .fg(Color::DarkGray)
         .add_modifier(Modifier::BOLD);
-    let fixed_width = 2 + 10 + 2 + 14 + 2 + 10 + 2 + 10;
-    let msg_width = width.saturating_sub(fixed_width);
     lines.push(Line::from(vec![
-        Span::styled(format!(" {:<10}", "STATUS"), hdr_style),
-        Span::styled(format!("{:<14}", "PLUGIN"), hdr_style),
-        Span::styled(format!("{:<10}", "APP"), hdr_style),
-        Span::styled(format!("{:<msg_width$}", "LAST MESSAGE"), hdr_style),
-        Span::styled(format!("{:>10}", "TOKENS"), hdr_style),
+        Span::styled(format!(" {:<w$}", "STATUS", w = COL_STATUS - 1), h),
+        Span::styled(format!("{:<w$}", "PLUGIN", w = COL_PLUGIN), h),
+        Span::styled(format!("{:<w$}", "APP", w = COL_APP), h),
+        Span::styled(format!("{:<w$}", "LAST MESSAGE", w = col_msg), h),
+        Span::styled(format!("{:>w$}", "TOKENS", w = COL_TOKENS), h),
     ]));
 
     let mut current_project: Option<PathBuf> = None;
@@ -113,7 +120,7 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
                 .unwrap_or_default();
 
             let label = format!(" {}{} ", session.project_name, branch_str);
-            let pad_len = width.saturating_sub(label.len() + 3);
+            let pad_len = width.saturating_sub(label.len() + 2);
             let padding = "─".repeat(pad_len);
 
             lines.push(Line::from(vec![
@@ -145,22 +152,21 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
             .as_deref()
             .unwrap_or("")
             .replace('\n', " ");
-        // Truncate to fit: width minus fixed columns
-        let fixed_width = 2 + 10 + 2 + 14 + 2 + 10 + 2 + 10; // status + plugin + app + tokens + spaces
-        let msg_width = width.saturating_sub(fixed_width);
-        let last_msg: String = last_msg.chars().take(msg_width).collect();
-        let msg_pad = msg_width.saturating_sub(last_msg.len());
+        let last_msg: String = last_msg.chars().take(col_msg.saturating_sub(1)).collect();
 
-        let status_text = format!(" {} {:<8}", session.status.symbol(), session.status.label());
-        let plugin_text = format!("{:<14}", session.display_name);
-        let app_text = format!("{:<10}", app_name);
-        let token_text = format!("{:>10}", tokens);
+        // Build fixed-width spans matching header columns
+        let status_label = format!("{} {}", session.status.symbol(), session.status.label());
+        let status_text = format!(" {:<w$}", status_label, w = COL_STATUS - 1);
+        let plugin_text = format!("{:<w$}", session.display_name, w = COL_PLUGIN);
+        let app_text = format!("{:<w$}", app_name, w = COL_APP);
+        let msg_text = format!("{:<w$}", last_msg, w = col_msg);
+        let token_text = format!("{:>w$}", tokens, w = COL_TOKENS);
 
         lines.push(Line::from(vec![
             Span::styled(status_text, style.fg(sc)),
             Span::styled(plugin_text, style),
             Span::styled(app_text, style.fg(Color::DarkGray)),
-            Span::styled(format!("{}{}", last_msg, " ".repeat(msg_pad)), style.fg(GRAY)),
+            Span::styled(msg_text, style.fg(GRAY)),
             Span::styled(token_text, style),
         ]));
 
