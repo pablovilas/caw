@@ -84,15 +84,43 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(paragraph, area);
 }
 
+// Column definition
+struct Col {
+    name: &'static str,
+    width: usize,
+    align_right: bool,
+}
+
+fn columns_for(group_by: GroupBy) -> Vec<Col> {
+    let mut cols = vec![Col { name: "STATUS", width: 14, align_right: false }];
+
+    if group_by != GroupBy::Plugin {
+        cols.push(Col { name: "PLUGIN", width: 18, align_right: false });
+    }
+    if group_by != GroupBy::App {
+        cols.push(Col { name: "APP", width: 12, align_right: false });
+    }
+    if group_by != GroupBy::Project && group_by != GroupBy::None {
+        cols.push(Col { name: "PROJECT", width: 16, align_right: false });
+        cols.push(Col { name: "BRANCH", width: 14, align_right: false });
+    }
+    if group_by == GroupBy::None {
+        cols.push(Col { name: "PROJECT", width: 16, align_right: false });
+        cols.push(Col { name: "BRANCH", width: 14, align_right: false });
+    }
+
+    // LAST MESSAGE is fill — handled separately
+    // TOKENS is always last
+    cols.push(Col { name: "TOKENS", width: 10, align_right: true });
+    cols
+}
+
 fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
     let width = area.width as usize;
+    let cols = columns_for(app.group_by);
 
-    const COL_STATUS: usize = 14;
-    const COL_PLUGIN: usize = 18;
-    const COL_APP: usize = 12;
-    const COL_TOKENS: usize = 10;
-    let col_fixed = COL_STATUS + COL_PLUGIN + COL_APP + COL_TOKENS;
-    let col_msg = width.saturating_sub(col_fixed);
+    let fixed_width: usize = cols.iter().map(|c| c.width).sum();
+    let col_msg = width.saturating_sub(fixed_width);
 
     let mut lines: Vec<Line> = Vec::new();
 
@@ -100,19 +128,29 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
     let h = Style::default()
         .fg(Color::DarkGray)
         .add_modifier(Modifier::BOLD);
-    lines.push(Line::from(vec![
-        Span::styled(format!(" {:<w$}", "STATUS", w = COL_STATUS - 1), h),
-        Span::styled(format!("{:<w$}", "PLUGIN", w = COL_PLUGIN), h),
-        Span::styled(format!("{:<w$}", "APP", w = COL_APP), h),
-        Span::styled(format!("{:<w$}", "LAST MESSAGE", w = col_msg), h),
-        Span::styled(format!("{:>w$}", "TOKENS", w = COL_TOKENS), h),
-    ]));
+
+    let mut hdr_spans: Vec<Span> = Vec::new();
+    for (i, col) in cols.iter().enumerate() {
+        if col.name == "TOKENS" {
+            // Insert LAST MESSAGE before TOKENS
+            hdr_spans.push(Span::styled(format!("{:<w$}", "LAST MESSAGE", w = col_msg), h));
+        }
+        let text = if i == 0 {
+            format!(" {:<w$}", col.name, w = col.width - 1)
+        } else if col.align_right {
+            format!("{:>w$}", col.name, w = col.width)
+        } else {
+            format!("{:<w$}", col.name, w = col.width)
+        };
+        hdr_spans.push(Span::styled(text, h));
+    }
+    lines.push(Line::from(hdr_spans));
 
     let mut current_group: Option<String> = None;
     let mut session_idx: usize = 0;
 
     for session in &app.sessions {
-        // Group header (skip for GroupBy::None)
+        // Group header
         if app.group_by != GroupBy::None {
             let group_key = app.group_key(session);
             if current_group.as_ref() != Some(&group_key) {
@@ -147,6 +185,7 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
 
         let tokens = format_tokens(session.token_usage.total());
         let app_name = session.app_name.as_deref().unwrap_or("-");
+        let branch = session.git_branch.as_deref().unwrap_or("-");
 
         let last_msg = session
             .last_message
@@ -155,21 +194,50 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
             .replace('\n', " ");
         let last_msg: String = last_msg.chars().take(col_msg.saturating_sub(1)).collect();
 
-        let status_label = format!("{} {}", session.status.symbol(), session.status.label());
-        let status_text = format!(" {:<w$}", status_label, w = COL_STATUS - 1);
-        let plugin_text = format!("{:<w$}", session.display_name, w = COL_PLUGIN);
-        let app_text = format!("{:<w$}", app_name, w = COL_APP);
-        let msg_text = format!("{:<w$}", last_msg, w = col_msg);
-        let token_text = format!("{:>w$}", tokens, w = COL_TOKENS);
+        let mut spans: Vec<Span> = Vec::new();
 
-        lines.push(Line::from(vec![
-            Span::styled(status_text, style.fg(sc)),
-            Span::styled(plugin_text, style),
-            Span::styled(app_text, style.fg(Color::DarkGray)),
-            Span::styled(msg_text, style.fg(GRAY)),
-            Span::styled(token_text, style),
-        ]));
+        for (i, col) in cols.iter().enumerate() {
+            if col.name == "TOKENS" {
+                // Insert LAST MESSAGE before TOKENS
+                spans.push(Span::styled(
+                    format!("{:<w$}", last_msg, w = col_msg),
+                    style.fg(GRAY),
+                ));
+            }
 
+            let (text, col_style) = match col.name {
+                "STATUS" => {
+                    let label = format!("{} {}", session.status.symbol(), session.status.label());
+                    (format!(" {:<w$}", label, w = col.width - 1), style.fg(sc))
+                }
+                "PLUGIN" => (
+                    format!("{:<w$}", session.display_name, w = col.width),
+                    style,
+                ),
+                "APP" => (
+                    format!("{:<w$}", app_name, w = col.width),
+                    style.fg(Color::DarkGray),
+                ),
+                "PROJECT" => (
+                    format!("{:<w$}", session.project_name, w = col.width),
+                    style,
+                ),
+                "BRANCH" => (
+                    format!("{:<w$}", branch, w = col.width),
+                    style.fg(Color::DarkGray),
+                ),
+                "TOKENS" => (
+                    format!("{:>w$}", tokens, w = col.width),
+                    style,
+                ),
+                _ => (String::new(), style),
+            };
+
+            let _ = i; // used for first-col padding already handled in STATUS
+            spans.push(Span::styled(text, col_style));
+        }
+
+        lines.push(Line::from(spans));
         session_idx += 1;
     }
 
