@@ -111,6 +111,10 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
     for session in &app.sessions {
         // Group header
         if current_project.as_ref() != Some(&session.project_path) {
+            // Blank line between groups (not before the first)
+            if current_project.is_some() {
+                lines.push(Line::from(""));
+            }
             current_project = Some(session.project_path.clone());
 
             let branch_str = session
