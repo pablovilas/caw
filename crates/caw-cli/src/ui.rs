@@ -33,7 +33,7 @@ fn format_tokens(total: u64) -> String {
 }
 
 pub fn draw(frame: &mut Frame, app: &App) {
-    let chunks = Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(frame.area());
+    let chunks = Layout::vertical([Constraint::Length(6), Constraint::Min(0)]).split(frame.area());
 
     draw_header(frame, chunks[0], app);
     draw_sessions(frame, chunks[1], app);
@@ -57,20 +57,38 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
         .count();
 
     let dim = Style::default().fg(Color::DarkGray);
-    let crow = Style::default().fg(Color::White);
+    let logo = Style::default().fg(Color::White);
+    let bold = Style::default().fg(Color::White).add_modifier(Modifier::BOLD);
+
+    // Crow logo (4 lines) + wordmark + status counts
+    // Logo chars are 13 wide, then text starts at column 16
+    let logo_lines = [
+        "     ▄▄▄▄▄▄▄▄▄",
+        "  ▄█████▄████",
+        " ▄█████████▀",
+        " ▀▀▀██████",
+    ];
 
     let lines = vec![
         Line::from(vec![
-            Span::styled("  ╱▶ ", crow),
-            Span::styled("caw ", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(format!("  {:<16}", logo_lines[0]), logo),
+            Span::styled("caw", bold),
+        ]),
+        Line::from(vec![
+            Span::styled(format!("  {:<16}", logo_lines[1]), logo),
             Span::styled("coding assistant watcher", dim),
-            Span::raw("   "),
+        ]),
+        Line::from(vec![
+            Span::styled(format!("  {:<16}", logo_lines[2]), logo),
             Span::styled(format!("● {} ", working), Style::default().fg(TEAL)),
             Span::styled("working  ", Style::default().fg(TEAL)),
             Span::styled(format!("▲ {} ", waiting), Style::default().fg(AMBER)),
             Span::styled("waiting  ", Style::default().fg(AMBER)),
             Span::styled(format!("◉ {} ", idle), Style::default().fg(GRAY)),
             Span::styled("idle", Style::default().fg(GRAY)),
+        ]),
+        Line::from(vec![
+            Span::styled(format!("  {:<16}", logo_lines[3]), logo),
         ]),
     ];
 
