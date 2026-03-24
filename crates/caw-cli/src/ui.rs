@@ -33,7 +33,7 @@ fn format_tokens(total: u64) -> String {
 }
 
 pub fn draw(frame: &mut Frame, app: &App) {
-    let chunks = Layout::vertical([Constraint::Length(6), Constraint::Min(0)]).split(frame.area());
+    let chunks = Layout::vertical([Constraint::Length(4), Constraint::Min(0)]).split(frame.area());
 
     draw_header(frame, chunks[0], app);
     draw_sessions(frame, chunks[1], app);
@@ -60,25 +60,12 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
     let logo_s = Style::default().fg(Color::White);
     let bold = Style::default().fg(Color::White).add_modifier(Modifier::BOLD);
 
-    // Braille crow logo (4 lines, ~12 chars wide)
-    let logo = [
-        "⠀⠀⠀⠀⣀⣤⠀⠀⠀⣠⣴⠆",
-        "⠀⠀⡴⠊⢹⣁⣀⣡⠔⢡⠇⠀",
-        "⠀⡞⠁⠀⠀⠀⠀⣀⡴⠋⠀⠀",
-        "⠀⠉⠉⣹⠧⠖⠚⠷⠄⠀⠀⠀",
-    ];
-
     let lines = vec![
         Line::from(vec![
-            Span::styled(format!(" {} ", logo[0]), logo_s),
-            Span::styled("caw", bold),
-        ]),
-        Line::from(vec![
-            Span::styled(format!(" {} ", logo[1]), logo_s),
+            Span::styled("  ⣠⣶⢢⣰⡖ ", logo_s),
+            Span::styled("caw ", bold),
             Span::styled("coding assistant watcher", dim),
-        ]),
-        Line::from(vec![
-            Span::styled(format!(" {} ", logo[2]), logo_s),
+            Span::raw("   "),
             Span::styled(format!("● {} ", working), Style::default().fg(TEAL)),
             Span::styled("working  ", Style::default().fg(TEAL)),
             Span::styled(format!("▲ {} ", waiting), Style::default().fg(AMBER)),
@@ -87,7 +74,7 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
             Span::styled("idle", Style::default().fg(GRAY)),
         ]),
         Line::from(vec![
-            Span::styled(format!(" {} ", logo[3]), logo_s),
+            Span::styled("  ⠸⢥⣬⣽⡚⠁", logo_s),
         ]),
     ];
 
