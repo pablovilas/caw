@@ -17,6 +17,7 @@ struct MessageContent {
     content: Option<serde_json::Value>,
     model: Option<String>,
     usage: Option<UsageData>,
+    stop_reason: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -76,9 +77,7 @@ fn parse_session_file(path: &Path, instance_id: &str) -> anyhow::Result<Option<R
     // but we need full file for token totals. Use a two-pass approach:
     // Pass 1: tail for status. Pass 2: full scan for tokens (skip if file is small).
     let mut total_usage = TokenUsage::default();
-    let mut last_role: Option<String> = None;
-    let mut last_message: Option<String> = None;
-    let mut model: Option<String> = None;
+    let mut state = ParseState::default();
 
     if file_size > 200_000 {
         // Large file: read last 100KB for recent state
@@ -94,17 +93,16 @@ fn parse_session_file(path: &Path, instance_id: &str) -> anyhow::Result<Option<R
                 _ => continue,
             };
 
-            // Skip the first (potentially partial) line when seeking
             if first_line && offset > 0 {
                 first_line = false;
                 continue;
             }
             first_line = false;
 
-            process_line(&line, &mut last_role, &mut last_message, &mut model, &mut total_usage);
+            process_line(&line, &mut state, &mut total_usage);
         }
 
-        // For token totals in large files, scan the full file just for usage
+        // Full scan for token totals
         let full_file = fs::File::open(path)?;
         let reader = BufReader::new(full_file);
         let mut full_usage = TokenUsage::default();
@@ -113,7 +111,6 @@ fn parse_session_file(path: &Path, instance_id: &str) -> anyhow::Result<Option<R
                 Ok(l) if !l.trim().is_empty() => l,
                 _ => continue,
             };
-            // Quick check before full parse
             if line.contains("\"usage\"") {
                 if let Ok(entry) = serde_json::from_str::<JournalEntry>(&line) {
                     if let Some(msg) = &entry.message {
@@ -129,18 +126,17 @@ fn parse_session_file(path: &Path, instance_id: &str) -> anyhow::Result<Option<R
         }
         total_usage = full_usage;
     } else {
-        // Small file: parse everything
         let reader = BufReader::new(file);
         for line in reader.lines() {
             let line = match line {
                 Ok(l) if !l.trim().is_empty() => l,
                 _ => continue,
             };
-            process_line(&line, &mut last_role, &mut last_message, &mut model, &mut total_usage);
+            process_line(&line, &mut state, &mut total_usage);
         }
     }
 
-    // Determine status
+    // Determine status based on file recency and last entry state
     let modified = fs::metadata(path)?
         .modified()
         .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
@@ -148,35 +144,41 @@ fn parse_session_file(path: &Path, instance_id: &str) -> anyhow::Result<Option<R
         .duration_since(modified)
         .unwrap_or_default();
 
-    let status = match last_role.as_deref() {
-        Some("user") => SessionStatus::WaitingInput,
-        Some("assistant") => {
-            if age.as_secs() < 5 {
-                SessionStatus::Working
-            } else {
-                SessionStatus::Idle
-            }
-        }
-        _ => SessionStatus::Idle,
+    let status = if age.as_secs() < 10 {
+        // File recently written → actively working
+        SessionStatus::Working
+    } else if state.last_role.as_deref() == Some("user") {
+        // Last entry was user, file not recently written → waiting for assistant
+        SessionStatus::WaitingInput
+    } else if state.last_stop_reason.as_deref() == Some("end_turn") {
+        // Assistant finished its turn
+        SessionStatus::Idle
+    } else if state.last_role.as_deref() == Some("assistant") && age.as_secs() < 30 {
+        // Assistant mid-turn (tool_use or no stop_reason yet), still recent
+        SessionStatus::Working
+    } else {
+        SessionStatus::Idle
     };
 
     Ok(Some(RawSession {
         instance_id: instance_id.to_string(),
         status,
-        last_message,
-        git_branch: None, // populated from instance.extra in from_raw
+        last_message: state.last_message,
+        git_branch: None,
         token_usage: Some(total_usage),
-        extra: serde_json::json!({ "model": model }),
+        extra: serde_json::json!({ "model": state.model }),
     }))
 }
 
-fn process_line(
-    line: &str,
-    last_role: &mut Option<String>,
-    last_message: &mut Option<String>,
-    model: &mut Option<String>,
-    total_usage: &mut TokenUsage,
-) {
+#[derive(Default)]
+struct ParseState {
+    last_role: Option<String>,
+    last_stop_reason: Option<String>,
+    last_message: Option<String>,
+    model: Option<String>,
+}
+
+fn process_line(line: &str, state: &mut ParseState, total_usage: &mut TokenUsage) {
     let entry: JournalEntry = match serde_json::from_str(line) {
         Ok(e) => e,
         Err(_) => return,
@@ -184,11 +186,17 @@ fn process_line(
 
     if let Some(msg) = &entry.message {
         if let Some(role) = &msg.role {
-            *last_role = Some(role.clone());
+            state.last_role = Some(role.clone());
+            // Reset stop_reason when role changes
+            state.last_stop_reason = None;
         }
 
         if let Some(m) = &msg.model {
-            *model = Some(m.clone());
+            state.model = Some(m.clone());
+        }
+
+        if let Some(sr) = &msg.stop_reason {
+            state.last_stop_reason = Some(sr.clone());
         }
 
         if let Some(usage) = &msg.usage {
@@ -201,23 +209,21 @@ fn process_line(
         if msg.role.as_deref() == Some("assistant") {
             if let Some(content) = &msg.content {
                 if let Some(text) = extract_text_from_content(content) {
-                    *last_message = Some(text);
+                    state.last_message = Some(text);
                 }
             }
         }
     }
 
-    // Handle entries with role at top level (e.g., type: "user")
     if let Some(role) = &entry.role {
-        *last_role = Some(role.clone());
+        state.last_role = Some(role.clone());
     }
 
-    // Some entries have type field indicating the role
     if let Some(entry_type) = &entry.entry_type {
         if entry_type == "human" || entry_type == "user" {
-            *last_role = Some("user".to_string());
+            state.last_role = Some("user".to_string());
         } else if entry_type == "assistant" {
-            *last_role = Some("assistant".to_string());
+            state.last_role = Some("assistant".to_string());
         }
     }
 }
