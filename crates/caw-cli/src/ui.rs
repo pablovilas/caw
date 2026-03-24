@@ -3,7 +3,7 @@ use caw_core::SessionStatus;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
+use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 use std::path::PathBuf;
 
@@ -37,7 +37,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
     let chunks = Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(frame.area());
 
     draw_header(frame, chunks[0], app);
-    draw_table(frame, chunks[1], app);
+    draw_sessions(frame, chunks[1], app);
 }
 
 fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
@@ -80,29 +80,14 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(paragraph, area);
 }
 
-fn draw_table(frame: &mut Frame, area: Rect, app: &App) {
-    let header = Row::new(vec![
-        Cell::from("STATUS"),
-        Cell::from("PLUGIN"),
-        Cell::from("APP"),
-        Cell::from("LAST MESSAGE"),
-        Cell::from("TOKENS"),
-    ])
-    .style(
-        Style::default()
-            .fg(Color::DarkGray)
-            .add_modifier(Modifier::BOLD),
-    );
-
-    // Build rows with group headers
-    let mut rows: Vec<Row> = Vec::new();
+fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
+    let width = area.width as usize;
+    let mut lines: Vec<Line> = Vec::new();
     let mut current_project: Option<PathBuf> = None;
     let mut session_idx: usize = 0;
 
-    let col_count = 5;
-
     for session in &app.sessions {
-        // Insert group header when project changes
+        // Group header
         if current_project.as_ref() != Some(&session.project_path) {
             current_project = Some(session.project_path.clone());
 
@@ -112,71 +97,65 @@ fn draw_table(frame: &mut Frame, area: Rect, app: &App) {
                 .map(|b| format!(" @{}", b))
                 .unwrap_or_default();
 
-            let label = format!("── {} {} ", session.project_name, branch_str);
-            let padding = "─".repeat(60usize.saturating_sub(label.len()));
-            let header_text = format!("{}{}", label, padding);
+            let label = format!(" {}{} ", session.project_name, branch_str);
+            let pad_len = width.saturating_sub(label.len() + 3);
+            let padding = "─".repeat(pad_len);
 
-            // Group header spans all columns via a single cell
-            let mut cells: Vec<Cell> = vec![Cell::from(header_text)
-                .style(Style::default().fg(Color::DarkGray))];
-            for _ in 1..col_count {
-                cells.push(Cell::from(""));
-            }
-            rows.push(Row::new(cells));
+            lines.push(Line::from(vec![
+                Span::styled("──", Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    label,
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(padding, Style::default().fg(Color::DarkGray)),
+            ]));
         }
 
         // Session row
-        let status_style = Style::default().fg(status_color(&session.status));
-        let row_style = if session_idx == app.selected {
+        let is_selected = session_idx == app.selected;
+        let style = if is_selected {
             Style::default().add_modifier(Modifier::REVERSED)
         } else {
             Style::default()
         };
+        let sc = status_color(&session.status);
 
         let tokens = format_tokens(session.token_usage.total());
+        let app_name = session.app_name.as_deref().unwrap_or("-");
+
         let last_msg = session
             .last_message
             .as_deref()
-            .unwrap_or("-")
-            .chars()
-            .take(60)
-            .collect::<String>();
-        let app_name = session.app_name.as_deref().unwrap_or("-");
+            .unwrap_or("")
+            .replace('\n', " ");
+        // Truncate to fit: width minus fixed columns
+        let fixed_width = 2 + 10 + 2 + 14 + 2 + 10 + 2 + 10; // status + plugin + app + tokens + spaces
+        let msg_width = width.saturating_sub(fixed_width);
+        let last_msg: String = last_msg.chars().take(msg_width).collect();
+        let msg_pad = msg_width.saturating_sub(last_msg.len());
 
-        rows.push(
-            Row::new(vec![
-                Cell::from(format!(
-                    " {} {}",
-                    session.status.symbol(),
-                    session.status.label()
-                ))
-                .style(status_style),
-                Cell::from(session.display_name.as_str()),
-                Cell::from(app_name),
-                Cell::from(last_msg),
-                Cell::from(tokens),
-            ])
-            .style(row_style),
-        );
+        let status_text = format!(" {} {:<8}", session.status.symbol(), session.status.label());
+        let plugin_text = format!("{:<14}", session.display_name);
+        let app_text = format!("{:<10}", app_name);
+        let token_text = format!("{:>10}", tokens);
+
+        lines.push(Line::from(vec![
+            Span::styled(status_text, style.fg(sc)),
+            Span::styled(plugin_text, style),
+            Span::styled(app_text, style.fg(Color::DarkGray)),
+            Span::styled(format!("{}{}", last_msg, " ".repeat(msg_pad)), style.fg(GRAY)),
+            Span::styled(token_text, style),
+        ]));
 
         session_idx += 1;
     }
 
-    let widths = [
-        Constraint::Length(14),
-        Constraint::Length(14),
-        Constraint::Length(10),
-        Constraint::Fill(1),
-        Constraint::Length(10),
-    ];
+    let block = Block::default()
+        .borders(Borders::NONE)
+        .title_bottom(" q:quit  j/k:navigate  enter:focus  h:history ");
 
-    let table = Table::new(rows, widths)
-        .header(header)
-        .block(
-            Block::default()
-                .borders(Borders::NONE)
-                .title_bottom(" q:quit  j/k:navigate  enter:focus  h:history "),
-        );
-
-    frame.render_widget(table, area);
+    let paragraph = Paragraph::new(lines).block(block);
+    frame.render_widget(paragraph, area);
 }
