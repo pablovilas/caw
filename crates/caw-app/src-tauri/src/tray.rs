@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
-    tray::{TrayIcon, TrayIconBuilder},
-    App, AppHandle, Manager,
+    tray::{TrayIconBuilder, TrayIconEvent},
+    App, Manager,
 };
 
 type SessionPidMap = Arc<Mutex<HashMap<String, u32>>>;
@@ -61,81 +61,57 @@ pub fn setup_tray(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let pid_map: SessionPidMap = Arc::new(Mutex::new(HashMap::new()));
     let group_by: GroupByState = Arc::new(Mutex::new(GroupBy::Project));
-    let force_update = Arc::new(tokio::sync::Notify::new());
-
-    let tray = build_tray(app, &[], &pid_map, &group_by, &force_update)?;
-
-    let handle = app.handle().clone();
-    let tray_id = tray.id().clone();
-    let update_group_by = group_by.clone();
-    let update_pid_map = pid_map.clone();
-    let update_notify = force_update.clone();
-    rt.spawn(async move {
-        let mut rx = monitor.subscribe();
-
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        let sessions = monitor.snapshot().await;
-        let _ = update_tray(&handle, &tray_id, &sessions, &update_pid_map, &update_group_by);
-
-        loop {
-            tokio::select! {
-                // Normal monitor events — debounce 10s
-                result = rx.recv() => {
-                    match result {
-                        Ok(_) => {
-                            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-                            while rx.try_recv().is_ok() {}
-                            let sessions = monitor.snapshot().await;
-                            let _ = update_tray(&handle, &tray_id, &sessions, &update_pid_map, &update_group_by);
-                        }
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
-                        Err(_) => break,
-                    }
-                }
-                // Forced update (grouping changed) — immediate
-                _ = update_notify.notified() => {
-                    let sessions = monitor.snapshot().await;
-                    let _ = update_tray(&handle, &tray_id, &sessions, &update_pid_map, &update_group_by);
-                }
-            }
-        }
-    });
-
-    Ok(())
-}
-
-fn build_tray(
-    app: &App,
-    sessions: &[NormalizedSession],
-    pid_map: &SessionPidMap,
-    group_by: &GroupByState,
-    force_update: &Arc<tokio::sync::Notify>,
-) -> Result<TrayIcon, Box<dyn std::error::Error>> {
-    let current_group = *group_by.lock().unwrap();
-    let menu = build_menu(app, sessions, pid_map, current_group)?;
 
     let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?.to_owned();
 
-    let pid_map = pid_map.clone();
-    let group_by = group_by.clone();
-    let force_update = force_update.clone();
-    let tray = TrayIconBuilder::new()
+    // Build initial empty menu
+    let current_group = *group_by.lock().unwrap();
+    let menu = build_menu(app, &[], &pid_map, current_group)?;
+
+    let click_monitor = monitor.clone();
+    let click_pid_map = pid_map.clone();
+    let click_group_by = group_by.clone();
+    let click_rt = rt;
+
+    let event_pid_map = pid_map.clone();
+    let event_group_by = group_by.clone();
+
+    let _tray = TrayIconBuilder::new()
         .icon(icon)
         .icon_as_template(true)
         .menu(&menu)
         .show_menu_on_left_click(true)
-        .tooltip(&build_tooltip(sessions))
+        .tooltip("caw — coding assistant watcher")
+        .on_tray_icon_event(move |tray, event| {
+            // Rebuild menu fresh on every click
+            if let TrayIconEvent::Click { .. } = event {
+                let monitor = click_monitor.clone();
+                let pid_map = click_pid_map.clone();
+                let group_by = click_group_by.clone();
+                let tray_handle = tray.clone();
+
+                click_rt.spawn(async move {
+                    let sessions = monitor.snapshot().await;
+                    let current_group = *group_by.lock().unwrap();
+
+                    let tooltip = build_tooltip(&sessions);
+                    let _ = tray_handle.set_tooltip(Some(&tooltip));
+
+                    if let Ok(menu) = build_menu(tray_handle.app_handle(), &sessions, &pid_map, current_group) {
+                        let _ = tray_handle.set_menu(Some(menu));
+                    }
+                });
+            }
+        })
         .on_menu_event(move |app, event| {
             let id = event.id().as_ref();
             match id {
                 "quit" => app.exit(0),
                 _ if GroupBy::from_id(id).is_some() => {
-                    let new_group = GroupBy::from_id(id).unwrap();
-                    *group_by.lock().unwrap() = new_group;
-                    force_update.notify_one();
+                    *event_group_by.lock().unwrap() = GroupBy::from_id(id).unwrap();
                 }
                 _ => {
-                    if let Some(&pid) = pid_map.lock().unwrap().get(id) {
+                    if let Some(&pid) = event_pid_map.lock().unwrap().get(id) {
                         std::thread::spawn(move || {
                             caw_core::focus::focus_terminal_for_pid(pid);
                         });
@@ -145,7 +121,7 @@ fn build_tray(
         })
         .build(app)?;
 
-    Ok(tray)
+    Ok(())
 }
 
 fn build_tooltip(sessions: &[NormalizedSession]) -> String {
@@ -289,20 +265,4 @@ fn status_ord(status: &SessionStatus) -> u8 {
         SessionStatus::Idle => 2,
         SessionStatus::Dead => 3,
     }
-}
-
-fn update_tray(
-    handle: &AppHandle,
-    tray_id: &tauri::tray::TrayIconId,
-    sessions: &[NormalizedSession],
-    pid_map: &SessionPidMap,
-    group_by: &GroupByState,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let current_group = *group_by.lock().unwrap();
-    let menu = build_menu(handle, sessions, pid_map, current_group)?;
-    if let Some(tray) = handle.tray_by_id(tray_id) {
-        tray.set_menu(Some(menu))?;
-        let _ = tray.set_tooltip(Some(&build_tooltip(sessions)));
-    }
-    Ok(())
 }
