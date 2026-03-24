@@ -29,7 +29,10 @@ impl IPlugin for ClaudePlugin {
     }
 
     async fn discover(&self) -> anyhow::Result<Vec<RawInstance>> {
-        let processes = self.scanner.lock().unwrap().scan(&["claude"]);
+        let scanner = self.scanner.clone();
+        let processes = tokio::task::spawn_blocking(move || {
+            scanner.lock().unwrap().scan(&["claude"])
+        }).await?;
         Ok(process::discover_claude_instances(processes))
     }
 

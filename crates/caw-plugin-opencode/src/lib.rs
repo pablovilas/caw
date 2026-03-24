@@ -27,7 +27,10 @@ impl IPlugin for OpenCodePlugin {
     }
 
     async fn discover(&self) -> anyhow::Result<Vec<RawInstance>> {
-        let processes = self.scanner.lock().unwrap().scan(&["opencode"]);
+        let scanner = self.scanner.clone();
+        let processes = tokio::task::spawn_blocking(move || {
+            scanner.lock().unwrap().scan(&["opencode"])
+        }).await?;
 
         let mut instances = Vec::new();
         for proc in processes {

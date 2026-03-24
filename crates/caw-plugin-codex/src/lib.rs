@@ -29,7 +29,10 @@ impl IPlugin for CodexPlugin {
     }
 
     async fn discover(&self) -> anyhow::Result<Vec<RawInstance>> {
-        let processes = self.scanner.lock().unwrap().scan(&["codex"]);
+        let scanner = self.scanner.clone();
+        let processes = tokio::task::spawn_blocking(move || {
+            scanner.lock().unwrap().scan(&["codex"])
+        }).await?;
 
         let mut instances = Vec::new();
         for proc in processes {

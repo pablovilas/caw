@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::{Duration, Instant};
@@ -10,7 +10,6 @@ pub struct ProcessInfo {
     pub name: String,
     pub cwd: Option<PathBuf>,
     pub cmd: Vec<String>,
-    /// The host application (e.g. "iTerm", "VS Code", "Terminal")
     pub app_name: Option<String>,
 }
 
@@ -25,6 +24,8 @@ pub struct ProcessScanner {
     system: System,
     last_refresh: Instant,
     cache_duration: Duration,
+    /// Only processes matching watched names are cached.
+    watched_names: HashSet<String>,
     cached: Vec<CachedProcess>,
     ppid_map: HashMap<u32, u32>,
     cmd_map: HashMap<u32, Vec<String>>,
@@ -36,7 +37,8 @@ impl ProcessScanner {
         Self {
             system: System::new(),
             last_refresh: Instant::now() - Duration::from_secs(60),
-            cache_duration: Duration::from_secs(2),
+            cache_duration: Duration::from_secs(5),
+            watched_names: HashSet::new(),
             cached: Vec::new(),
             ppid_map: HashMap::new(),
             cmd_map: HashMap::new(),
@@ -45,8 +47,12 @@ impl ProcessScanner {
     }
 
     /// Refresh if stale, then return processes matching any of the given names.
-    /// App name is resolved only for matched processes (not all).
     pub fn scan(&mut self, names: &[&str]) -> Vec<ProcessInfo> {
+        // Register names to watch
+        for name in names {
+            self.watched_names.insert(name.to_string());
+        }
+
         self.refresh_if_needed();
 
         let matched: Vec<_> = self.cached
@@ -54,7 +60,7 @@ impl ProcessScanner {
             .filter(|p| names.iter().any(|n| p.name == *n))
             .collect();
 
-        // Resolve app_name only for new PIDs not in cache
+        // Resolve app_name only for new PIDs
         for p in &matched {
             if !self.app_name_cache.contains_key(&p.pid) {
                 let name = resolve_app_name(p.pid, &self.ppid_map, &self.cmd_map);
@@ -82,39 +88,45 @@ impl ProcessScanner {
         }
 
         self.system
-            .refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+            .refresh_processes(sysinfo::ProcessesToUpdate::All, false);
 
-        let mut infos: Vec<CachedProcess> = Vec::new();
+        let mut matched_infos: Vec<CachedProcess> = Vec::new();
         let mut ppid_map: HashMap<u32, u32> = HashMap::new();
         let mut cmd_map: HashMap<u32, Vec<String>> = HashMap::new();
 
+        // Only collect processes matching watched names + their ancestors for app_name resolution
         for (pid, process) in self.system.processes() {
             let pid_u32 = pid.as_u32();
-            let name = process.name().to_string_lossy().to_string();
-            let cwd = process.cwd().map(PathBuf::from);
-            let cmd: Vec<String> = process
-                .cmd()
-                .iter()
-                .map(|s| s.to_string_lossy().to_string())
-                .collect();
 
+            // Always collect ppid/cmd for all (needed for app_name tree walk)
             if let Some(ppid) = process.parent() {
                 ppid_map.insert(pid_u32, ppid.as_u32());
             }
-            cmd_map.insert(pid_u32, cmd.clone());
 
-            infos.push(CachedProcess {
-                pid: pid_u32,
-                name,
-                cwd,
-                cmd,
-            });
+            let name = process.name().to_string_lossy().to_string();
+
+            if self.watched_names.contains(&name) {
+                let cwd = process.cwd().map(PathBuf::from);
+                let cmd: Vec<String> = process
+                    .cmd()
+                    .iter()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .collect();
+                cmd_map.insert(pid_u32, cmd.clone());
+
+                matched_infos.push(CachedProcess {
+                    pid: pid_u32,
+                    name,
+                    cwd,
+                    cmd,
+                });
+            }
         }
 
-        // On macOS, sysinfo often can't read cwd. Batch-resolve via lsof.
+        // On macOS, resolve cwd only for matched processes (not all)
         #[cfg(target_os = "macos")]
         {
-            let missing_cwd_pids: Vec<u32> = infos
+            let missing_cwd_pids: Vec<u32> = matched_infos
                 .iter()
                 .filter(|p| p.cwd.is_none())
                 .map(|p| p.pid)
@@ -122,7 +134,7 @@ impl ProcessScanner {
 
             if !missing_cwd_pids.is_empty() {
                 let cwd_map = lsof_cwds(&missing_cwd_pids);
-                for info in &mut infos {
+                for info in &mut matched_infos {
                     if info.cwd.is_none() {
                         info.cwd = cwd_map.get(&info.pid).cloned();
                     }
@@ -131,10 +143,10 @@ impl ProcessScanner {
         }
 
         // Prune app_name cache for dead PIDs
-        let live_pids: std::collections::HashSet<u32> = infos.iter().map(|p| p.pid).collect();
+        let live_pids: HashSet<u32> = matched_infos.iter().map(|p| p.pid).collect();
         self.app_name_cache.retain(|pid, _| live_pids.contains(pid));
 
-        self.cached = infos;
+        self.cached = matched_infos;
         self.ppid_map = ppid_map;
         self.cmd_map = cmd_map;
         self.last_refresh = Instant::now();
@@ -148,13 +160,11 @@ impl Default for ProcessScanner {
 }
 
 /// Walk the process tree to find the host .app bundle.
-/// Uses sysinfo's cached data first, falls back to ps on macOS.
 fn resolve_app_name(
     pid: u32,
     ppid_map: &HashMap<u32, u32>,
     cmd_map: &HashMap<u32, Vec<String>>,
 ) -> Option<String> {
-    // Check the process's own cmd
     if let Some(cmd) = cmd_map.get(&pid) {
         if let Some(first) = cmd.first() {
             if let Some(app) = extract_app_display_name(first) {
@@ -163,7 +173,6 @@ fn resolve_app_name(
         }
     }
 
-    // Walk up parent chain using sysinfo data
     let mut current = pid;
     for _ in 0..20 {
         let ppid = match ppid_map.get(&current) {
@@ -182,7 +191,6 @@ fn resolve_app_name(
         current = ppid;
     }
 
-    // On macOS, sysinfo cmd() is often empty. Fall back to ps.
     #[cfg(target_os = "macos")]
     {
         return resolve_app_name_via_ps(pid);
@@ -192,7 +200,6 @@ fn resolve_app_name(
     None
 }
 
-/// macOS fallback: walk process tree via ps command.
 #[cfg(target_os = "macos")]
 fn resolve_app_name_via_ps(pid: u32) -> Option<String> {
     let mut current = pid;
@@ -227,7 +234,6 @@ fn resolve_app_name_via_ps(pid: u32) -> Option<String> {
     None
 }
 
-/// Extract a human-readable app name from a command path containing ".app".
 fn extract_app_display_name(cmd: &str) -> Option<String> {
     let idx = cmd.find(".app")?;
     let app_path = &cmd[..idx + 4];
@@ -249,7 +255,6 @@ fn extract_app_display_name(cmd: &str) -> Option<String> {
     Some(display.to_string())
 }
 
-/// Batch-resolve cwds via lsof (macOS fallback).
 #[cfg(target_os = "macos")]
 fn lsof_cwds(pids: &[u32]) -> HashMap<u32, PathBuf> {
     let mut map = HashMap::new();
@@ -286,7 +291,6 @@ fn lsof_cwds(pids: &[u32]) -> HashMap<u32, PathBuf> {
     map
 }
 
-/// Read the current git branch for a working directory.
 pub fn read_git_branch(working_dir: &std::path::Path) -> Option<String> {
     let output = Command::new("git")
         .args(["rev-parse", "--abbrev-ref", "HEAD"])

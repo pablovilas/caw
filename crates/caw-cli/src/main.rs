@@ -52,6 +52,13 @@ async fn main() -> anyhow::Result<()> {
         Some(Command::Status) => {
             let registry = build_registry();
             let monitor = caw_core::Monitor::new(registry);
+            // Wait for first discovery to complete (up to 5s)
+            let mut rx = monitor.subscribe();
+            let _ = tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                rx.recv(),
+            ).await;
+            // Wait for remaining plugins to complete first discovery
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
             let sessions = monitor.snapshot().await;
 
