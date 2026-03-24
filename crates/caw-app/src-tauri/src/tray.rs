@@ -28,10 +28,10 @@ pub fn setup_tray(
         let _ = update_tray(&handle, &tray_id, &sessions, &pid_map);
 
         loop {
+            // Wait for any event, then debounce for 10s before rebuilding menu
             match rx.recv().await {
                 Ok(_) => {
-                    // Debounce: drain all pending events, then update once
-                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
                     while rx.try_recv().is_ok() {}
 
                     let sessions = monitor.snapshot().await;
