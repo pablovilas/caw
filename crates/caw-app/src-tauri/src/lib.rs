@@ -1,17 +1,16 @@
 mod tray;
 
-use caw_core::{Monitor, PluginRegistry, ProcessScanner};
+use caw_core::{Monitor, PluginRegistry};
 use caw_plugin_claude::ClaudePlugin;
 use caw_plugin_codex::CodexPlugin;
 use caw_plugin_opencode::OpenCodePlugin;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 fn build_registry() -> PluginRegistry {
-    let scanner = Arc::new(Mutex::new(ProcessScanner::new()));
     let mut registry = PluginRegistry::new();
-    registry.register(Arc::new(ClaudePlugin::new(scanner.clone())));
-    registry.register(Arc::new(CodexPlugin::new(scanner.clone())));
-    registry.register(Arc::new(OpenCodePlugin::new(scanner)));
+    registry.register(Arc::new(ClaudePlugin::new()));
+    registry.register(Arc::new(CodexPlugin::new()));
+    registry.register(Arc::new(OpenCodePlugin::new()));
     registry
 }
 
@@ -28,7 +27,6 @@ pub fn run() {
         Arc::new(Monitor::new(registry))
     });
 
-    // Keep the runtime alive in a background thread
     let rt_bg = rt.clone();
     std::thread::spawn(move || {
         rt_bg.block_on(std::future::pending::<()>());
@@ -39,7 +37,6 @@ pub fn run() {
         .setup({
             let monitor = monitor.clone();
             move |app| {
-                // macOS: set as accessory app (menu bar only, no dock icon)
                 #[cfg(target_os = "macos")]
                 {
                     use tauri::ActivationPolicy;

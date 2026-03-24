@@ -1,12 +1,12 @@
 mod app;
 mod ui;
 
-use caw_core::{PluginRegistry, ProcessScanner};
+use caw_core::PluginRegistry;
 use caw_plugin_claude::ClaudePlugin;
 use caw_plugin_codex::CodexPlugin;
 use caw_plugin_opencode::OpenCodePlugin;
 use clap::{Parser, Subcommand};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "caw", about = "coding assistant watcher")]
@@ -28,11 +28,10 @@ enum Command {
 }
 
 fn build_registry() -> PluginRegistry {
-    let scanner = Arc::new(Mutex::new(ProcessScanner::new()));
     let mut registry = PluginRegistry::new();
-    registry.register(Arc::new(ClaudePlugin::new(scanner.clone())));
-    registry.register(Arc::new(CodexPlugin::new(scanner.clone())));
-    registry.register(Arc::new(OpenCodePlugin::new(scanner)));
+    registry.register(Arc::new(ClaudePlugin::new()));
+    registry.register(Arc::new(CodexPlugin::new()));
+    registry.register(Arc::new(OpenCodePlugin::new()));
     registry
 }
 
@@ -52,14 +51,8 @@ async fn main() -> anyhow::Result<()> {
         Some(Command::Status) => {
             let registry = build_registry();
             let monitor = caw_core::Monitor::new(registry);
-            // Wait for first discovery to complete (up to 5s)
-            let mut rx = monitor.subscribe();
-            let _ = tokio::time::timeout(
-                std::time::Duration::from_secs(5),
-                rx.recv(),
-            ).await;
-            // Wait for remaining plugins to complete first discovery
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            // Wait for first discovery cycle
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
             let sessions = monitor.snapshot().await;
 
             let working = sessions
