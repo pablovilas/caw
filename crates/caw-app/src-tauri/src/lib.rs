@@ -27,14 +27,24 @@ pub fn run() {
         .with_env_filter("caw=debug")
         .init();
 
-    let registry = build_registry();
-    let monitor = Arc::new(Monitor::new(registry));
+    // Create a tokio runtime for the monitor and WS server
+    let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
 
-    // Start WebSocket server
+    // Monitor must be created inside the runtime context
+    let monitor = rt.block_on(async {
+        let registry = build_registry();
+        Arc::new(Monitor::new(registry))
+    });
+
+    // Start WebSocket server on the runtime
     let ws_monitor = monitor.clone();
+    rt.spawn(async move {
+        ws::run_ws_server(ws_monitor).await;
+    });
+
+    // Keep the runtime alive in a background thread
     std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(ws::run_ws_server(ws_monitor));
+        rt.block_on(std::future::pending::<()>());
     });
 
     let state = AppState {
