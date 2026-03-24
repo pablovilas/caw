@@ -62,7 +62,7 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
 
     let lines = vec![
         Line::from(vec![
-            Span::styled("  ⣠⣶⢢⣰⡖ ", logo_s),
+            Span::styled("  ⣠⣶⣖⣶⡖ ", logo_s),
             Span::styled("caw ", bold),
             Span::styled("coding assistant watcher", dim),
             Span::raw("   "),
@@ -74,7 +74,7 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
             Span::styled("idle", Style::default().fg(GRAY)),
         ]),
         Line::from(vec![
-            Span::styled("  ⠸⢥⣬⣽⡚⠁", logo_s),
+            Span::styled("  ⠸⢿⣿⣿⡛⠁", logo_s),
         ]),
     ];
 
