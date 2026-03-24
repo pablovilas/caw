@@ -38,6 +38,13 @@ pub fn run() {
         .setup({
             let monitor = monitor.clone();
             move |app| {
+                // macOS: set as accessory app (menu bar only, no dock icon)
+                #[cfg(target_os = "macos")]
+                {
+                    use tauri::ActivationPolicy;
+                    app.set_activation_policy(ActivationPolicy::Accessory);
+                }
+
                 tray::setup_tray(app, monitor)?;
                 Ok(())
             }
