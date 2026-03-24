@@ -122,12 +122,7 @@ impl NormalizedSession {
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| instance.working_dir.to_string_lossy().to_string());
 
-        // If the instance has no running process, it's dead
-        let status = if instance.pid.is_none() {
-            SessionStatus::Dead
-        } else {
-            session.status.clone()
-        };
+        let status = session.status.clone();
 
         Self {
             id: instance.id.clone(),
