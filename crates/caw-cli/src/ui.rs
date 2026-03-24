@@ -66,6 +66,7 @@ fn draw_table(frame: &mut Frame, area: Rect, app: &App) {
     let header = Row::new(vec![
         Cell::from("STATUS"),
         Cell::from("PLUGIN"),
+        Cell::from("APP"),
         Cell::from("PROJECT"),
         Cell::from("BRANCH"),
         Cell::from("LAST MESSAGE"),
@@ -111,6 +112,7 @@ fn draw_table(frame: &mut Frame, area: Rect, app: &App) {
                 .collect::<String>();
 
             let branch = session.git_branch.as_deref().unwrap_or("-");
+            let app = session.app_name.as_deref().unwrap_or("-");
 
             Row::new(vec![
                 Cell::from(format!(
@@ -120,6 +122,7 @@ fn draw_table(frame: &mut Frame, area: Rect, app: &App) {
                 ))
                 .style(status_style),
                 Cell::from(session.display_name.as_str()),
+                Cell::from(app),
                 Cell::from(session.project_name.as_str()),
                 Cell::from(branch),
                 Cell::from(last_msg),
@@ -131,9 +134,10 @@ fn draw_table(frame: &mut Frame, area: Rect, app: &App) {
 
     let widths = [
         Constraint::Length(14),
-        Constraint::Length(16),
-        Constraint::Length(20),
-        Constraint::Length(16),
+        Constraint::Length(14),
+        Constraint::Length(10),
+        Constraint::Length(18),
+        Constraint::Length(14),
         Constraint::Fill(1),
         Constraint::Length(10),
     ];

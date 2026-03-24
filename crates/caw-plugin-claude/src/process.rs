@@ -11,7 +11,7 @@ fn encode_path(path: &std::path::Path) -> String {
 }
 
 /// Discover Claude Code instances by matching running processes to session dirs.
-/// Takes pre-scanned process list from the shared ProcessScanner.
+/// Creates one instance per process — if two processes share a project, both appear.
 pub fn discover_claude_instances(processes: Vec<ProcessInfo>) -> Vec<RawInstance> {
     let projects_dir = match dirs::home_dir() {
         Some(h) => h.join(".claude").join("projects"),
@@ -22,15 +22,16 @@ pub fn discover_claude_instances(processes: Vec<ProcessInfo>) -> Vec<RawInstance
         return Vec::new();
     }
 
-    // Build map: encoded cwd → first process (one instance per project)
-    let mut encoded_to_process: HashMap<String, &ProcessInfo> = HashMap::new();
+    // Build map: encoded cwd → all processes with that cwd
+    let mut encoded_to_processes: HashMap<String, Vec<&ProcessInfo>> = HashMap::new();
     for proc in &processes {
         if let Some(cwd) = &proc.cwd {
             let encoded = encode_path(cwd);
-            encoded_to_process.entry(encoded).or_insert(proc);
+            encoded_to_processes.entry(encoded).or_default().push(proc);
         }
     }
 
+    // Collect recent session files per project dir
     let mut instances = Vec::new();
 
     let Ok(project_entries) = std::fs::read_dir(&projects_dir) else {
@@ -67,7 +68,6 @@ pub fn discover_claude_instances(processes: Vec<ProcessInfo>) -> Vec<RawInstance
             continue;
         };
 
-        // Only include sessions modified in the last hour
         let age = std::time::SystemTime::now()
             .duration_since(modified)
             .unwrap_or_default();
@@ -81,7 +81,7 @@ pub fn discover_claude_instances(processes: Vec<ProcessInfo>) -> Vec<RawInstance
             .to_string_lossy()
             .to_string();
 
-        let Some(proc) = encoded_to_process.get(dir_name.as_str()) else {
+        let Some(procs) = encoded_to_processes.get(dir_name.as_str()) else {
             continue;
         };
 
@@ -91,19 +91,23 @@ pub fn discover_claude_instances(processes: Vec<ProcessInfo>) -> Vec<RawInstance
             .to_string_lossy()
             .to_string();
 
-        let working_dir = proc.cwd.clone().unwrap_or_default();
-        let git_branch = read_git_branch(&working_dir);
+        // Create one instance per process on this project
+        for proc in procs {
+            let working_dir = proc.cwd.clone().unwrap_or_default();
+            let git_branch = read_git_branch(&working_dir);
 
-        instances.push(RawInstance {
-            id: session_id,
-            pid: Some(proc.pid),
-            working_dir,
-            started_at: Utc::now(),
-            extra: serde_json::json!({
-                "session_file": session_path.to_string_lossy(),
-                "git_branch": git_branch,
-            }),
-        });
+            instances.push(RawInstance {
+                id: format!("{}-{}", session_id, proc.pid),
+                pid: Some(proc.pid),
+                working_dir,
+                started_at: Utc::now(),
+                extra: serde_json::json!({
+                    "session_file": session_path.to_string_lossy(),
+                    "git_branch": git_branch,
+                    "app_name": proc.app_name,
+                }),
+            });
+        }
     }
 
     instances

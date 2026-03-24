@@ -45,6 +45,7 @@ impl IPlugin for OpenCodePlugin {
                 started_at: Utc::now(),
                 extra: serde_json::json!({
                     "git_branch": git_branch,
+                    "app_name": proc.app_name,
                 }),
             });
         }

@@ -106,6 +106,7 @@ pub struct NormalizedSession {
     pub started_at: DateTime<Utc>,
     pub last_seen: DateTime<Utc>,
     pub pid: Option<u32>,
+    pub app_name: Option<String>,
 }
 
 impl NormalizedSession {
@@ -143,6 +144,7 @@ impl NormalizedSession {
             started_at: instance.started_at,
             last_seen: Utc::now(),
             pid: instance.pid,
+            app_name: instance.extra.get("app_name").and_then(|v| v.as_str()).map(String::from),
         }
     }
 }

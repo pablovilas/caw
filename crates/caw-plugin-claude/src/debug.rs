@@ -18,12 +18,13 @@ pub fn debug_processes() {
             .get("git_branch")
             .and_then(|v| v.as_str())
             .unwrap_or("-");
+        let app = inst.extra.get("app_name").and_then(|v| v.as_str()).unwrap_or("-");
         eprintln!(
-            "  id={} pid={:?} dir={} branch={}",
-            inst.id,
+            "  pid={:?} dir={} branch={} app={}",
             inst.pid,
             inst.working_dir.display(),
-            branch
+            branch,
+            app
         );
     }
 
