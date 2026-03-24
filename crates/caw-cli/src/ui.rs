@@ -138,7 +138,6 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
                 ),
                 Span::styled(padding, Style::default().fg(Color::DarkGray)),
             ]));
-            lines.push(Line::from(""));
         }
 
         // Session row
