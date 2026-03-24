@@ -62,10 +62,10 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
 
     // Braille crow logo (4 lines, ~12 chars wide)
     let logo = [
-        "⠀⠀⠀⠀⣀⣤⣤⣤⣤⣤⣴⠆",
-        "⠀⠀⣴⣾⣿⣿⣿⣾⣿⣿⠇⠀",
-        "⠀⣾⣿⣿⣿⣿⣿⣿⡿⠋⠀⠀",
-        "⠀⠉⠉⣹⠿⠿⠿⠷⠄⠀⠀⠀",
+        "⠀⠀⠀⠀⣀⣤⠀⠀⠀⣠⣴⠆",
+        "⠀⠀⡴⠊⢹⣁⣀⣡⠔⢡⠇⠀",
+        "⠀⡞⠁⠀⠀⠀⠀⣀⡴⠋⠀⠀",
+        "⠀⠉⠉⣹⠧⠖⠚⠷⠄⠀⠀⠀",
     ];
 
     let lines = vec![
