@@ -48,9 +48,12 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_shell::init())
         .manage(state)
-        .setup(|app| {
-            tray::setup_tray(app)?;
-            Ok(())
+        .setup({
+            let monitor = monitor.clone();
+            move |app| {
+                tray::setup_tray(app, monitor)?;
+                Ok(())
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_sessions,
