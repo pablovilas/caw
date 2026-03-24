@@ -84,9 +84,9 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
     let width = area.width as usize;
 
     // Column widths (consistent between header and data)
-    const COL_STATUS: usize = 12;
-    const COL_PLUGIN: usize = 16;
-    const COL_APP: usize = 10;
+    const COL_STATUS: usize = 14;
+    const COL_PLUGIN: usize = 18;
+    const COL_APP: usize = 12;
     const COL_TOKENS: usize = 10;
     let col_fixed = COL_STATUS + COL_PLUGIN + COL_APP + COL_TOKENS;
     let col_msg = width.saturating_sub(col_fixed);
