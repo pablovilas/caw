@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
-    tray::{TrayIconBuilder, TrayIconEvent},
-    App, Manager,
+    tray::TrayIconBuilder,
+    App, AppHandle, Manager,
 };
 
 type SessionPidMap = Arc<Mutex<HashMap<String, u32>>>;
@@ -64,51 +64,36 @@ pub fn setup_tray(
 
     let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?.to_owned();
 
-    // Build initial empty menu
     let current_group = *group_by.lock().unwrap();
     let menu = build_menu(app, &[], &pid_map, current_group)?;
 
-    let click_monitor = monitor.clone();
-    let click_pid_map = pid_map.clone();
-    let click_group_by = group_by.clone();
-    let click_rt = rt;
-
     let event_pid_map = pid_map.clone();
     let event_group_by = group_by.clone();
+    let event_monitor = monitor.clone();
+    let event_rt = rt.clone();
 
-    let _tray = TrayIconBuilder::new()
+    let _tray = TrayIconBuilder::with_id("caw-tray")
         .icon(icon)
         .icon_as_template(true)
         .menu(&menu)
         .show_menu_on_left_click(true)
         .tooltip("caw — coding assistant watcher")
-        .on_tray_icon_event(move |tray, event| {
-            // Rebuild menu fresh on every click
-            if let TrayIconEvent::Click { .. } = event {
-                let monitor = click_monitor.clone();
-                let pid_map = click_pid_map.clone();
-                let group_by = click_group_by.clone();
-                let tray_handle = tray.clone();
-
-                click_rt.spawn(async move {
-                    let sessions = monitor.snapshot().await;
-                    let current_group = *group_by.lock().unwrap();
-
-                    let tooltip = build_tooltip(&sessions);
-                    let _ = tray_handle.set_tooltip(Some(&tooltip));
-
-                    if let Ok(menu) = build_menu(tray_handle.app_handle(), &sessions, &pid_map, current_group) {
-                        let _ = tray_handle.set_menu(Some(menu));
-                    }
-                });
-            }
-        })
         .on_menu_event(move |app, event| {
             let id = event.id().as_ref();
             match id {
                 "quit" => app.exit(0),
                 _ if GroupBy::from_id(id).is_some() => {
                     *event_group_by.lock().unwrap() = GroupBy::from_id(id).unwrap();
+                    // Rebuild menu immediately with new grouping
+                    let handle = app.clone();
+                    let monitor = event_monitor.clone();
+                    let pid_map = event_pid_map.clone();
+                    let group_by = event_group_by.clone();
+                    event_rt.spawn(async move {
+                        let sessions = monitor.snapshot().await;
+                        let current_group = *group_by.lock().unwrap();
+                        let _ = rebuild_tray(&handle, &sessions, &pid_map, current_group);
+                    });
                 }
                 _ => {
                     if let Some(&pid) = event_pid_map.lock().unwrap().get(id) {
@@ -121,6 +106,41 @@ pub fn setup_tray(
         })
         .build(app)?;
 
+    // Background task: update menu periodically (only tooltip + session data, not while open)
+    let handle = app.handle().clone();
+    let bg_monitor = monitor;
+    let bg_pid_map = pid_map;
+    let bg_group_by = group_by;
+    rt.spawn(async move {
+        // Initial load
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        let sessions = bg_monitor.snapshot().await;
+        let current_group = *bg_group_by.lock().unwrap();
+        let _ = rebuild_tray(&handle, &sessions, &bg_pid_map, current_group);
+
+        // Periodic refresh every 30s
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+            let sessions = bg_monitor.snapshot().await;
+            let current_group = *bg_group_by.lock().unwrap();
+            let _ = rebuild_tray(&handle, &sessions, &bg_pid_map, current_group);
+        }
+    });
+
+    Ok(())
+}
+
+fn rebuild_tray(
+    handle: &AppHandle,
+    sessions: &[NormalizedSession],
+    pid_map: &SessionPidMap,
+    group_by: GroupBy,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let menu = build_menu(handle, sessions, pid_map, group_by)?;
+    if let Some(tray) = handle.tray_by_id("caw-tray") {
+        let _ = tray.set_menu(Some(menu));
+        let _ = tray.set_tooltip(Some(&build_tooltip(sessions)));
+    }
     Ok(())
 }
 
