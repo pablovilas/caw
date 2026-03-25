@@ -1,24 +1,10 @@
 use crate::app::{App, GroupBy};
-use caw_core::SessionStatus;
+use crate::palette::{self, BONE, MIST, ASH, GRAPHITE};
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
-
-const TEAL: Color = Color::Rgb(29, 158, 117);
-const AMBER: Color = Color::Rgb(239, 159, 39);
-const GRAY: Color = Color::Rgb(136, 135, 128);
-const RED: Color = Color::Rgb(226, 75, 74);
-
-fn status_color(status: &SessionStatus) -> Color {
-    match status {
-        SessionStatus::Working => TEAL,
-        SessionStatus::WaitingInput => AMBER,
-        SessionStatus::Idle => GRAY,
-        SessionStatus::Dead => RED,
-    }
-}
 
 fn format_tokens(total: u64) -> String {
     if total == 0 {
@@ -43,22 +29,22 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
     let working = app
         .sessions
         .iter()
-        .filter(|s| s.status == SessionStatus::Working)
+        .filter(|s| s.status == caw_core::SessionStatus::Working)
         .count();
     let waiting = app
         .sessions
         .iter()
-        .filter(|s| s.status == SessionStatus::WaitingInput)
+        .filter(|s| s.status == caw_core::SessionStatus::WaitingInput)
         .count();
     let idle = app
         .sessions
         .iter()
-        .filter(|s| s.status == SessionStatus::Idle)
+        .filter(|s| s.status == caw_core::SessionStatus::Idle)
         .count();
 
-    let dim = Style::default().fg(Color::DarkGray);
-    let logo_s = Style::default().fg(Color::White);
-    let bold = Style::default().fg(Color::White).add_modifier(Modifier::BOLD);
+    let dim = Style::default().fg(ASH);
+    let logo_s = Style::default().fg(BONE);
+    let bold = Style::default().fg(BONE).add_modifier(Modifier::BOLD);
 
     let lines = vec![
         Line::from(vec![
@@ -66,12 +52,12 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
             Span::styled("caw ", bold),
             Span::styled("coding assistant watcher", dim),
             Span::raw("   "),
-            Span::styled(format!("● {} ", working), Style::default().fg(TEAL)),
-            Span::styled("working  ", Style::default().fg(TEAL)),
-            Span::styled(format!("▲ {} ", waiting), Style::default().fg(AMBER)),
-            Span::styled("waiting  ", Style::default().fg(AMBER)),
-            Span::styled(format!("◉ {} ", idle), Style::default().fg(GRAY)),
-            Span::styled("idle", Style::default().fg(GRAY)),
+            Span::styled(format!("● {} ", working), Style::default().fg(palette::WORKING)),
+            Span::styled("working  ", Style::default().fg(palette::WORKING)),
+            Span::styled(format!("▲ {} ", waiting), Style::default().fg(palette::WAITING)),
+            Span::styled("waiting  ", Style::default().fg(palette::WAITING)),
+            Span::styled(format!("◉ {} ", idle), Style::default().fg(palette::IDLE)),
+            Span::styled("idle", Style::default().fg(palette::IDLE)),
         ]),
         Line::from(vec![
             Span::styled("  ⠸⢿⣿⣿⡛⠁", logo_s),
@@ -128,7 +114,7 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
 
     // Column header
     let h = Style::default()
-        .fg(Color::DarkGray)
+        .fg(ASH)
         .add_modifier(Modifier::BOLD);
 
     let mut hdr_spans: Vec<Span> = Vec::new();
@@ -163,14 +149,14 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
                 let padding = "─".repeat(pad_len);
 
                 lines.push(Line::from(vec![
-                    Span::styled("──", Style::default().fg(Color::DarkGray)),
+                    Span::styled("──", Style::default().fg(GRAPHITE)),
                     Span::styled(
                         label,
                         Style::default()
-                            .fg(Color::White)
+                            .fg(BONE)
                             .add_modifier(Modifier::BOLD),
                     ),
-                    Span::styled(padding, Style::default().fg(Color::DarkGray)),
+                    Span::styled(padding, Style::default().fg(GRAPHITE)),
                 ]));
             }
         }
@@ -182,7 +168,7 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
         } else {
             Style::default()
         };
-        let sc = status_color(&session.status);
+        let sc = palette::status_color(&session.status);
 
         let tokens = format_tokens(session.token_usage.total());
         let app_name = session.app_name.as_deref().unwrap_or("-");
@@ -202,7 +188,7 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
                 // Insert LAST MESSAGE before TOKENS
                 spans.push(Span::styled(
                     format!("{:<w$}", last_msg, w = col_msg),
-                    style.fg(GRAY),
+                    style.fg(ASH),
                 ));
             }
 
@@ -217,7 +203,7 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
                 ),
                 "APP" => (
                     format!("{:<w$}", app_name, w = col.width),
-                    style.fg(Color::DarkGray),
+                    style.fg(MIST),
                 ),
                 "PROJECT" => (
                     format!("{:<w$}", session.project_name, w = col.width),
@@ -225,7 +211,7 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
                 ),
                 "BRANCH" => (
                     format!("{:<w$}", branch, w = col.width),
-                    style.fg(Color::DarkGray),
+                    style.fg(MIST),
                 ),
                 "TOKENS" => (
                     format!("{:>w$}", tokens, w = col.width),

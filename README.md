@@ -2,11 +2,12 @@
 
 **coding assistant watcher**
 
+Watch every coding agent from one quiet perch.
+
+[![CI](https://github.com/pablovilas/caw/actions/workflows/ci.yml/badge.svg)](https://github.com/pablovilas/caw/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A cross-platform desktop app and TUI that monitors all running AI coding assistant instances from a single place. The crow is the mascot — it watches silently from above.
-
-![Screenshot placeholder](docs/screenshot.png)
+`caw` watches the coding assistants running on your machine and turns them into one calm operational view. Scan status, group sessions, and jump back to the right terminal without digging around.
 
 ## Supported Assistants
 
@@ -19,44 +20,60 @@ A cross-platform desktop app and TUI that monitors all running AI coding assista
 ## Install
 
 ```sh
-cargo install caw
+brew install pablovilas/tap/caw
+```
+
+Or build from source:
+
+```sh
+cargo install --git https://github.com/pablovilas/caw.git
 ```
 
 ## Usage
 
-```sh
-caw              # start Tauri desktop app
-caw tui          # interactive terminal dashboard
-caw serve        # headless daemon (logs events)
-caw status       # one-line output for shell prompts: "3w 1a 2i"
+```
+caw              Auto-detect (terminal → dashboard, background → tray)
+caw watch        Live interactive dashboard
+caw tray         Menu bar app with session overview
+caw status       One-line status for shell prompts (e.g. 2w 1a 0i)
+caw serve        Run as a background daemon
+caw debug        Print raw process discovery info
 ```
 
-### Status Symbols
+### Status
 
-| Symbol | Status | Color |
-|--------|--------|-------|
-| ● | Working | Teal `#1D9E75` |
-| ▲ | Waiting for input | Amber `#EF9F27` |
-| ◉ | Idle | Gray `#888780` |
-| ✕ | Dead | Red `#E24B4A` |
+| Symbol | Status | Meaning |
+|--------|--------|---------|
+| ● | working | Session is actively generating |
+| ▲ | waiting | Waiting for user input |
+| ◉ | idle | Present but inactive |
+| ✕ | dead | Process ended or disconnected |
 
 ## Architecture
 
 ```
 caw/
 ├── crates/
-│   ├── caw-core/              # IPlugin trait, types, Monitor engine
+│   ├── caw-core/              # Plugin trait, types, monitor engine
 │   ├── caw-plugin-claude/     # Claude Code plugin
-│   ├── caw-plugin-codex/      # OpenAI Codex CLI plugin
+│   ├── caw-plugin-codex/      # Codex CLI plugin
 │   ├── caw-plugin-opencode/   # OpenCode plugin
-│   ├── caw-tui/               # Ratatui TUI binary
-│   └── caw-app/src-tauri/     # Tauri v2 desktop app
-└── ui/                        # React + TypeScript frontend
+│   └── caw/                   # Binary: tray, dashboard, CLI
+└── branding/                  # Brand kit and design tokens
+```
+
+## Development
+
+```sh
+just setup    # Configure git hooks
+just ci       # Run lint + tests
+just build    # Build release binary
+just run      # Run in dev mode
 ```
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add a new plugin.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

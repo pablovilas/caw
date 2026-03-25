@@ -1,6 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+#[allow(dead_code)]
+mod palette;
 mod tray;
 mod ui;
 
