@@ -63,10 +63,13 @@ release version:
     git commit -m "chore: bump version to {{version}}"
     echo "Running checks..."
     just ci
+    echo "Building local .app bundle..."
+    just bundle
     echo "Tagging v{{version}}..."
     git tag "v{{version}}"
     git push origin main "v{{version}}"
     echo "Release v{{version}} pushed. GoReleaser will build and publish."
+    echo "Local bundle ready at target/release/caw.app"
 
 # Run the app
 run *args:
