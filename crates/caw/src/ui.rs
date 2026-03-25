@@ -19,7 +19,7 @@ fn format_tokens(total: u64) -> String {
 }
 
 pub fn draw(frame: &mut Frame, app: &App) {
-    let chunks = Layout::vertical([Constraint::Length(4), Constraint::Min(0)]).split(frame.area());
+    let chunks = Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(frame.area());
 
     draw_header(frame, chunks[0], app);
     draw_sessions(frame, chunks[1], app);
@@ -48,19 +48,18 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
 
     let lines = vec![
         Line::from(vec![
-            Span::styled("  ⣠⣶⣖⣶⡖ ", logo_s),
+            Span::styled(" ◖◉▷ ", logo_s),
             Span::styled("caw ", bold),
             Span::styled("coding assistant watcher", dim),
-            Span::raw("   "),
+        ]),
+        Line::from(vec![
+            Span::raw("      "),
             Span::styled(format!("● {} ", working), Style::default().fg(palette::WORKING)),
             Span::styled("working  ", Style::default().fg(palette::WORKING)),
             Span::styled(format!("▲ {} ", waiting), Style::default().fg(palette::WAITING)),
             Span::styled("waiting  ", Style::default().fg(palette::WAITING)),
             Span::styled(format!("◉ {} ", idle), Style::default().fg(palette::IDLE)),
             Span::styled("idle", Style::default().fg(palette::IDLE)),
-        ]),
-        Line::from(vec![
-            Span::styled("  ⠸⢿⣿⣿⡛⠁", logo_s),
         ]),
     ];
 
