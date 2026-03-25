@@ -18,5 +18,5 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - uses: extractions/setup-just@v3
+      - run: cargo install just
       - run: just ci
