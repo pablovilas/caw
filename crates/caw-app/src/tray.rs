@@ -1,5 +1,5 @@
 use caw_core::{NormalizedSession, SessionStatus};
-use muda::{Menu, MenuId, MenuItem, MenuItemKind, PredefinedMenuItem, Submenu};
+use muda::{Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use std::collections::HashMap;
 use tray_icon::TrayIcon;
 
@@ -19,6 +19,15 @@ impl GroupBy {
             "group-assistant" => Some(Self::Assistant),
             "group-none" => Some(Self::None),
             _ => None,
+        }
+    }
+
+    fn label(&self) -> &str {
+        match self {
+            Self::Project => "Project",
+            Self::App => "App",
+            Self::Assistant => "Assistant",
+            Self::None => "None",
         }
     }
 
@@ -87,49 +96,28 @@ impl GroupBy {
             ),
         }
     }
-
 }
 
-/// Items that live in the dynamic section of the menu (between separators).
-/// These are removed and re-added when grouping changes.
-struct DynamicItems {
-    /// All items in the dynamic section (headers + sessions + separators between groups)
-    items: Vec<MenuItemKind>,
-    /// Which items are session items: (session_id, MenuItem)
+/// Holds references to live menu items for in-place text updates.
+struct LiveMenu {
+    fingerprint: String,
+    summary: Option<MenuItem>,
     sessions: Vec<(String, MenuItem)>,
 }
 
-/// All tray state, kept on the main thread (MenuItem is !Send).
+/// All tray state, kept on the main thread.
 pub struct TrayState {
     tray_icon: TrayIcon,
-    menu: Menu,
     pid_map: HashMap<String, u32>,
     group_by: GroupBy,
-    /// Summary item at top
-    summary: Option<MenuItem>,
-    /// Dynamic items (sessions + headers) that get replaced on grouping change
-    dynamic: DynamicItems,
-    /// Position in menu where dynamic items start (after summary + separator)
-    dynamic_start: usize,
-    /// Group-by submenu items for updating checkmarks
-    group_items: GroupMenuItems,
-    /// Fingerprint of current session IDs
-    session_fingerprint: String,
-    /// Cached sessions for immediate rebuild on grouping change
+    live_menu: Option<LiveMenu>,
     last_sessions: Vec<NormalizedSession>,
 }
 
-struct GroupMenuItems {
-    project: MenuItem,
-    app: MenuItem,
-    assistant: MenuItem,
-    none: MenuItem,
-}
-
-fn compute_session_fingerprint(sessions: &[NormalizedSession]) -> String {
+fn compute_fingerprint(sessions: &[NormalizedSession], group_by: GroupBy) -> String {
     let mut ids: Vec<&str> = sessions.iter().map(|s| s.id.as_str()).collect();
     ids.sort();
-    ids.join(",")
+    format!("{}:{}", group_by.label(), ids.join(","))
 }
 
 fn load_icon() -> tray_icon::Icon {
@@ -143,43 +131,12 @@ fn load_icon() -> tray_icon::Icon {
 impl TrayState {
     pub fn new() -> Self {
         let icon = load_icon();
-        let menu = Menu::new();
-        let group_by = GroupBy::Project;
-
-        // Empty item
-        let empty = MenuItem::with_id(MenuId::new("empty"), "No active sessions", false, None);
-        let _ = menu.append(&empty);
-
-        // --- separator before bottom items ---
-        let _ = menu.append(&PredefinedMenuItem::separator());
-
-        // Group-by submenu with individual items we can update
-        let gi_project = MenuItem::with_id(
-            MenuId::new("group-project"),
-            "Project  \u{2713}",
-            true,
-            None,
-        );
-        let gi_app = MenuItem::with_id(MenuId::new("group-app"), "App", true, None);
-        let gi_assistant =
-            MenuItem::with_id(MenuId::new("group-assistant"), "Assistant", true, None);
-        let gi_none = MenuItem::with_id(MenuId::new("group-none"), "None", true, None);
-
-        let group_submenu = Submenu::with_id(MenuId::new("grouping"), "Group by", true);
-        let _ = group_submenu.append(&gi_project);
-        let _ = group_submenu.append(&gi_app);
-        let _ = group_submenu.append(&gi_assistant);
-        let _ = group_submenu.append(&PredefinedMenuItem::separator());
-        let _ = group_submenu.append(&gi_none);
-        let _ = menu.append(&group_submenu);
-
-        let _ = menu.append(&PredefinedMenuItem::separator());
-        let _ = menu.append(&MenuItem::with_id(MenuId::new("quit"), "Quit caw", true, None));
+        let (menu, live) = build_menu(&[], GroupBy::Project);
 
         let tray_icon = tray_icon::TrayIconBuilder::new()
             .with_icon(icon)
             .with_icon_as_template(true)
-            .with_menu(Box::new(menu.clone()))
+            .with_menu(Box::new(menu))
             .with_menu_on_left_click(true)
             .with_tooltip("caw — coding assistant watcher")
             .build()
@@ -187,22 +144,9 @@ impl TrayState {
 
         TrayState {
             tray_icon,
-            menu,
             pid_map: HashMap::new(),
-            group_by,
-            summary: None,
-            dynamic: DynamicItems {
-                items: vec![MenuItemKind::MenuItem(empty)],
-                sessions: Vec::new(),
-            },
-            dynamic_start: 0,
-            group_items: GroupMenuItems {
-                project: gi_project,
-                app: gi_app,
-                assistant: gi_assistant,
-                none: gi_none,
-            },
-            session_fingerprint: String::new(),
+            group_by: GroupBy::Project,
+            live_menu: Some(live),
             last_sessions: Vec::new(),
         }
     }
@@ -215,10 +159,8 @@ pub fn handle_menu_event(state: &mut TrayState, event: &muda::MenuEvent) {
         "quit" => std::process::exit(0),
         _ if GroupBy::from_id(id).is_some() => {
             state.group_by = GroupBy::from_id(id).unwrap();
-            update_group_checkmarks(state);
-            // Rebuild dynamic section in-place (menu stays open)
             let sessions = state.last_sessions.clone();
-            rebuild_dynamic_section(state, &sessions);
+            full_rebuild(state, &sessions);
         }
         _ => {
             if let Some(&pid) = state.pid_map.get(id) {
@@ -233,198 +175,57 @@ pub fn handle_menu_event(state: &mut TrayState, event: &muda::MenuEvent) {
 pub fn update_from_snapshot(state: &mut TrayState, sessions: &[NormalizedSession]) {
     state.last_sessions = sessions.to_vec();
 
-    let new_fp = compute_session_fingerprint(sessions);
-    let structure_changed = new_fp != state.session_fingerprint;
+    let new_fp = compute_fingerprint(sessions, state.group_by);
+    let needs_rebuild = state
+        .live_menu
+        .as_ref()
+        .map_or(true, |m| m.fingerprint != new_fp);
 
-    if structure_changed {
-        // Sessions added/removed — rebuild dynamic section
-        rebuild_dynamic_section(state, sessions);
-        state.session_fingerprint = new_fp;
+    if needs_rebuild {
+        full_rebuild(state, sessions);
     } else {
-        // Same sessions — update texts in-place (menu stays open)
         update_texts_in_place(state, sessions);
-    }
-
-    let tooltip = build_tooltip(sessions);
-    let _ = state.tray_icon.set_tooltip(Some(&tooltip));
-}
-
-fn update_group_checkmarks(state: &TrayState) {
-    let check = |g: GroupBy| {
-        if g == state.group_by {
-            format!("{}  \u{2713}", g.label())
-        } else {
-            g.label().to_string()
-        }
-    };
-    let _ = state.group_items.project.set_text(check(GroupBy::Project));
-    let _ = state.group_items.app.set_text(check(GroupBy::App));
-    let _ = state
-        .group_items
-        .assistant
-        .set_text(check(GroupBy::Assistant));
-    let _ = state.group_items.none.set_text(check(GroupBy::None));
-}
-
-impl GroupBy {
-    fn label(&self) -> &str {
-        match self {
-            Self::Project => "Project",
-            Self::App => "App",
-            Self::Assistant => "Assistant",
-            Self::None => "None",
-        }
+        let tooltip = build_tooltip(sessions);
+        let _ = state.tray_icon.set_tooltip(Some(&tooltip));
     }
 }
 
-/// Remove all dynamic items and re-add them with current grouping.
-/// Because we mutate the shared Menu (Rc-based), changes appear
-/// on the live NSMenu without closing it.
-fn rebuild_dynamic_section(state: &mut TrayState, sessions: &[NormalizedSession]) {
-    // Remove old dynamic items + summary from top of menu
-    let remove_count = state.dynamic.items.len() + if state.summary.is_some() { 1 } else { 0 };
-    for _ in 0..remove_count {
-        state.menu.remove_at(0);
-    }
+fn full_rebuild(state: &mut TrayState, sessions: &[NormalizedSession]) {
+    let (menu, live) = build_menu(sessions, state.group_by);
+    state.pid_map = extract_pid_map(sessions);
+    state.tray_icon.set_menu(Some(Box::new(menu)));
+    let _ = state.tray_icon.set_tooltip(Some(&build_tooltip(sessions)));
+    state.live_menu = Some(live);
+}
 
-    let mut new_dynamic_items: Vec<MenuItemKind> = Vec::new();
-    let mut new_session_items: Vec<(String, MenuItem)> = Vec::new();
-    let mut new_pid_map = HashMap::new();
-    let mut pos = 0; // insert position (top of menu)
-
-    if sessions.is_empty() {
-        let empty = MenuItem::with_id(MenuId::new("empty"), "No active sessions", false, None);
-        let _ = state.menu.insert(&empty, pos);
-        new_dynamic_items.push(MenuItemKind::MenuItem(empty));
-        state.summary = None;
-    } else {
-        // Summary
-        let working = sessions
-            .iter()
-            .filter(|s| s.status == SessionStatus::Working)
-            .count();
-        let waiting = sessions
-            .iter()
-            .filter(|s| s.status == SessionStatus::WaitingInput)
-            .count();
-        let idle = sessions
-            .iter()
-            .filter(|s| s.status == SessionStatus::Idle)
-            .count();
-        let summary_text = format!("{} working  {} waiting  {} idle", working, waiting, idle);
-        let summary = MenuItem::with_id(MenuId::new("summary"), &summary_text, false, None);
-        let _ = state.menu.insert(&summary, pos);
-        pos += 1;
-
-        let sep = PredefinedMenuItem::separator();
-        let _ = state.menu.insert(&sep, pos);
-        pos += 1;
-        new_dynamic_items.push(MenuItemKind::Predefined(sep));
-
-        state.summary = Some(summary);
-
-        if state.group_by == GroupBy::None {
-            let mut sorted: Vec<_> = sessions.iter().collect();
-            sorted.sort_by_key(|s| status_ord(&s.status));
-
-            for session in sorted {
-                let menu_id = format!("session-{}", session.id);
-                let label = state.group_by.session_label(session);
-                if let Some(pid) = session.pid {
-                    new_pid_map.insert(menu_id.clone(), pid);
-                }
-                let item = MenuItem::with_id(MenuId::new(&menu_id), &label, true, None);
-                let _ = state.menu.insert(&item, pos);
-                pos += 1;
-                new_session_items.push((session.id.clone(), item.clone()));
-                new_dynamic_items.push(MenuItemKind::MenuItem(item));
-            }
-        } else {
-            let mut groups: HashMap<String, Vec<&NormalizedSession>> = HashMap::new();
-            for session in sessions {
-                groups
-                    .entry(state.group_by.group_key(session))
-                    .or_default()
-                    .push(session);
-            }
-
-            let mut sorted_groups: Vec<_> = groups.into_iter().collect();
-            sorted_groups.sort_by_key(|(_, sessions)| {
-                sessions
-                    .iter()
-                    .map(|s| status_ord(&s.status))
-                    .min()
-                    .unwrap_or(3)
-            });
-
-            for (i, (_, group_sessions)) in sorted_groups.iter().enumerate() {
-                if i > 0 {
-                    let sep = PredefinedMenuItem::separator();
-                    let _ = state.menu.insert(&sep, pos);
-                    pos += 1;
-                    new_dynamic_items.push(MenuItemKind::Predefined(sep));
-                }
-
-                let header_text = state.group_by.group_header(group_sessions[0]);
-                let header_id = format!("group-header-{}", i);
-                let header =
-                    MenuItem::with_id(MenuId::new(&header_id), &header_text, false, None);
-                let _ = state.menu.insert(&header, pos);
-                pos += 1;
-                new_dynamic_items.push(MenuItemKind::MenuItem(header));
-
-                for session in group_sessions {
-                    let menu_id = format!("session-{}", session.id);
-                    let label = state.group_by.session_label(session);
-                    if let Some(pid) = session.pid {
-                        new_pid_map.insert(menu_id.clone(), pid);
-                    }
-                    let item = MenuItem::with_id(MenuId::new(&menu_id), &label, true, None);
-                    let _ = state.menu.insert(&item, pos);
-                    pos += 1;
-                    new_session_items.push((session.id.clone(), item.clone()));
-                    new_dynamic_items.push(MenuItemKind::MenuItem(item));
-                }
-            }
+fn extract_pid_map(sessions: &[NormalizedSession]) -> HashMap<String, u32> {
+    let mut map = HashMap::new();
+    for s in sessions {
+        if let Some(pid) = s.pid {
+            map.insert(format!("session-{}", s.id), pid);
         }
     }
-
-    state.dynamic_start = 0;
-    state.dynamic = DynamicItems {
-        items: new_dynamic_items,
-        sessions: new_session_items,
-    };
-    state.pid_map = new_pid_map;
-    state.session_fingerprint = compute_session_fingerprint(sessions);
+    map
 }
 
 fn update_texts_in_place(state: &mut TrayState, sessions: &[NormalizedSession]) {
-    // Update summary counts
-    if let Some(ref summary) = state.summary {
-        let working = sessions
-            .iter()
-            .filter(|s| s.status == SessionStatus::Working)
-            .count();
-        let waiting = sessions
-            .iter()
-            .filter(|s| s.status == SessionStatus::WaitingInput)
-            .count();
-        let idle = sessions
-            .iter()
-            .filter(|s| s.status == SessionStatus::Idle)
-            .count();
-        let _ = summary.set_text(format!(
-            "{} working  {} waiting  {} idle",
-            working, waiting, idle
-        ));
+    let live = match state.live_menu.as_ref() {
+        Some(l) => l,
+        None => return,
+    };
+
+    if let Some(ref summary) = live.summary {
+        let working = sessions.iter().filter(|s| s.status == SessionStatus::Working).count();
+        let waiting = sessions.iter().filter(|s| s.status == SessionStatus::WaitingInput).count();
+        let idle = sessions.iter().filter(|s| s.status == SessionStatus::Idle).count();
+        let _ = summary.set_text(format!("{} working  {} waiting  {} idle", working, waiting, idle));
     }
 
-    // Update session item labels
     let session_map: HashMap<&str, &NormalizedSession> =
         sessions.iter().map(|s| (s.id.as_str(), s)).collect();
     let mut new_pid_map = HashMap::new();
 
-    for (session_id, item) in &state.dynamic.sessions {
+    for (session_id, item) in &live.sessions {
         if let Some(session) = session_map.get(session_id.as_str()) {
             let _ = item.set_text(state.group_by.session_label(session));
             let menu_id = format!("session-{}", session_id);
@@ -441,22 +242,91 @@ fn build_tooltip(sessions: &[NormalizedSession]) -> String {
     if sessions.is_empty() {
         return "caw — no sessions".to_string();
     }
-    let working = sessions
-        .iter()
-        .filter(|s| s.status == SessionStatus::Working)
-        .count();
-    let waiting = sessions
-        .iter()
-        .filter(|s| s.status == SessionStatus::WaitingInput)
-        .count();
-    let idle = sessions
-        .iter()
-        .filter(|s| s.status == SessionStatus::Idle)
-        .count();
-    format!(
-        "caw — {} working, {} waiting, {} idle",
-        working, waiting, idle
-    )
+    let working = sessions.iter().filter(|s| s.status == SessionStatus::Working).count();
+    let waiting = sessions.iter().filter(|s| s.status == SessionStatus::WaitingInput).count();
+    let idle = sessions.iter().filter(|s| s.status == SessionStatus::Idle).count();
+    format!("caw — {} working, {} waiting, {} idle", working, waiting, idle)
+}
+
+fn build_menu(sessions: &[NormalizedSession], group_by: GroupBy) -> (Menu, LiveMenu) {
+    let fingerprint = compute_fingerprint(sessions, group_by);
+    let menu = Menu::new();
+    let mut summary_item = None;
+    let mut session_items = Vec::new();
+
+    if sessions.is_empty() {
+        let _ = menu.append(&MenuItem::with_id(MenuId::new("empty"), "No active sessions", false, None));
+    } else {
+        let working = sessions.iter().filter(|s| s.status == SessionStatus::Working).count();
+        let waiting = sessions.iter().filter(|s| s.status == SessionStatus::WaitingInput).count();
+        let idle = sessions.iter().filter(|s| s.status == SessionStatus::Idle).count();
+
+        let summary = MenuItem::with_id(
+            MenuId::new("summary"),
+            format!("{} working  {} waiting  {} idle", working, waiting, idle),
+            false,
+            None,
+        );
+        let _ = menu.append(&summary);
+        let _ = menu.append(&PredefinedMenuItem::separator());
+        summary_item = Some(summary);
+
+        if group_by == GroupBy::None {
+            let mut sorted: Vec<_> = sessions.iter().collect();
+            sorted.sort_by_key(|s| status_ord(&s.status));
+
+            for session in sorted {
+                let menu_id = format!("session-{}", session.id);
+                let item = MenuItem::with_id(MenuId::new(&menu_id), group_by.session_label(session), true, None);
+                let _ = menu.append(&item);
+                session_items.push((session.id.clone(), item));
+            }
+        } else {
+            let mut groups: HashMap<String, Vec<&NormalizedSession>> = HashMap::new();
+            for session in sessions {
+                groups.entry(group_by.group_key(session)).or_default().push(session);
+            }
+
+            let mut sorted_groups: Vec<_> = groups.into_iter().collect();
+            sorted_groups.sort_by_key(|(_, g)| g.iter().map(|s| status_ord(&s.status)).min().unwrap_or(3));
+
+            for (i, (_, group_sessions)) in sorted_groups.iter().enumerate() {
+                if i > 0 {
+                    let _ = menu.append(&PredefinedMenuItem::separator());
+                }
+
+                let _ = menu.append(&MenuItem::with_id(
+                    MenuId::new(format!("group-header-{}", i)),
+                    group_by.group_header(group_sessions[0]),
+                    false,
+                    None,
+                ));
+
+                for session in group_sessions {
+                    let menu_id = format!("session-{}", session.id);
+                    let item = MenuItem::with_id(MenuId::new(&menu_id), group_by.session_label(session), true, None);
+                    let _ = menu.append(&item);
+                    session_items.push((session.id.clone(), item));
+                }
+            }
+        }
+    }
+
+    let _ = menu.append(&PredefinedMenuItem::separator());
+
+    let check = |g: GroupBy| if g == group_by { format!("{}  \u{2713}", g.label()) } else { g.label().to_string() };
+    let group_submenu = Submenu::with_id(MenuId::new("grouping"), "Group by", true);
+    let _ = group_submenu.append(&MenuItem::with_id(MenuId::new("group-project"), check(GroupBy::Project), true, None));
+    let _ = group_submenu.append(&MenuItem::with_id(MenuId::new("group-app"), check(GroupBy::App), true, None));
+    let _ = group_submenu.append(&MenuItem::with_id(MenuId::new("group-assistant"), check(GroupBy::Assistant), true, None));
+    let _ = group_submenu.append(&PredefinedMenuItem::separator());
+    let _ = group_submenu.append(&MenuItem::with_id(MenuId::new("group-none"), check(GroupBy::None), true, None));
+    let _ = menu.append(&group_submenu);
+
+    let _ = menu.append(&PredefinedMenuItem::separator());
+    let _ = menu.append(&MenuItem::with_id(MenuId::new("quit"), "Quit caw", true, None));
+
+    (menu, LiveMenu { fingerprint, summary: summary_item, sessions: session_items })
 }
 
 fn status_ord(status: &SessionStatus) -> u8 {
