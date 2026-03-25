@@ -149,9 +149,8 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
     lines.push(Line::from(hdr_spans));
 
     let mut current_group: Option<String> = None;
-    let mut session_idx: usize = 0;
 
-    for session in &app.sessions {
+    for (session_idx, session) in app.sessions.iter().enumerate() {
         // Group header
         if app.group_by != GroupBy::None {
             let group_key = app.group_key(session);
@@ -240,7 +239,6 @@ fn draw_sessions(frame: &mut Frame, area: Rect, app: &App) {
         }
 
         lines.push(Line::from(spans));
-        session_idx += 1;
     }
 
     let footer = format!(

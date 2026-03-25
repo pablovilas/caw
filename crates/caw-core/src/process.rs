@@ -186,7 +186,7 @@ fn resolve_app_name(
 
     #[cfg(target_os = "macos")]
     {
-        return resolve_app_name_via_ps(pid);
+        resolve_app_name_via_ps(pid)
     }
 
     #[cfg(not(target_os = "macos"))]

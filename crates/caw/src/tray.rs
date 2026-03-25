@@ -179,7 +179,7 @@ pub fn update_from_snapshot(state: &mut TrayState, sessions: &[NormalizedSession
     let needs_rebuild = state
         .live_menu
         .as_ref()
-        .map_or(true, |m| m.fingerprint != new_fp);
+        .is_none_or(|m| m.fingerprint != new_fp);
 
     if needs_rebuild {
         full_rebuild(state, sessions);
@@ -218,7 +218,7 @@ fn update_texts_in_place(state: &mut TrayState, sessions: &[NormalizedSession]) 
         let working = sessions.iter().filter(|s| s.status == SessionStatus::Working).count();
         let waiting = sessions.iter().filter(|s| s.status == SessionStatus::WaitingInput).count();
         let idle = sessions.iter().filter(|s| s.status == SessionStatus::Idle).count();
-        let _ = summary.set_text(format!("{} working  {} waiting  {} idle", working, waiting, idle));
+        summary.set_text(format!("{} working  {} waiting  {} idle", working, waiting, idle));
     }
 
     let session_map: HashMap<&str, &NormalizedSession> =
@@ -227,7 +227,7 @@ fn update_texts_in_place(state: &mut TrayState, sessions: &[NormalizedSession]) 
 
     for (session_id, item) in &live.sessions {
         if let Some(session) = session_map.get(session_id.as_str()) {
-            let _ = item.set_text(state.group_by.session_label(session));
+            item.set_text(state.group_by.session_label(session));
             let menu_id = format!("session-{}", session_id);
             if let Some(pid) = session.pid {
                 new_pid_map.insert(menu_id, pid);
