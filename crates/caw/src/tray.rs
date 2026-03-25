@@ -223,7 +223,10 @@ fn update_texts_in_place(state: &mut TrayState, sessions: &[NormalizedSession]) 
         let working = sessions.iter().filter(|s| s.status == SessionStatus::Working).count();
         let waiting = sessions.iter().filter(|s| s.status == SessionStatus::WaitingInput).count();
         let idle = sessions.iter().filter(|s| s.status == SessionStatus::Idle).count();
-        summary.set_text(format!("{} working  {} waiting  {} idle", working, waiting, idle));
+        summary.set_text(format!(
+            "{} working  {} waiting  {} idle  ·  v{}",
+            working, waiting, idle, env!("CARGO_PKG_VERSION")
+        ));
     }
 
     let session_map: HashMap<&str, &NormalizedSession> =
@@ -259,8 +262,15 @@ fn build_menu(sessions: &[NormalizedSession], group_by: GroupBy) -> (Menu, LiveM
     let mut summary_item = None;
     let mut session_items = Vec::new();
 
+    let ver = env!("CARGO_PKG_VERSION");
+
     if sessions.is_empty() {
-        let _ = menu.append(&MenuItem::with_id(MenuId::new("empty"), "No active sessions", false, None));
+        let _ = menu.append(&MenuItem::with_id(
+            MenuId::new("empty"),
+            format!("No active sessions  ·  v{}", ver),
+            false,
+            None,
+        ));
     } else {
         let working = sessions.iter().filter(|s| s.status == SessionStatus::Working).count();
         let waiting = sessions.iter().filter(|s| s.status == SessionStatus::WaitingInput).count();
@@ -268,7 +278,7 @@ fn build_menu(sessions: &[NormalizedSession], group_by: GroupBy) -> (Menu, LiveM
 
         let summary = MenuItem::with_id(
             MenuId::new("summary"),
-            format!("{} working  {} waiting  {} idle", working, waiting, idle),
+            format!("{} working  {} waiting  {} idle  ·  v{}", working, waiting, idle, ver),
             false,
             None,
         );
@@ -340,12 +350,6 @@ fn build_menu(sessions: &[NormalizedSession], group_by: GroupBy) -> (Menu, LiveM
     }
 
     let _ = menu.append(&PredefinedMenuItem::separator());
-    let _ = menu.append(&MenuItem::with_id(
-        MenuId::new("version"),
-        format!("caw v{}", env!("CARGO_PKG_VERSION")),
-        false,
-        None,
-    ));
     let _ = menu.append(&MenuItem::with_id(MenuId::new("quit"), "Quit", true, None));
 
     (menu, LiveMenu { fingerprint, summary: summary_item, sessions: session_items })
