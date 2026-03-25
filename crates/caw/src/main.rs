@@ -21,8 +21,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Interactive TUI dashboard
-    Tui,
+    /// Live interactive dashboard
+    Watch,
     /// System tray app
     Tray,
     /// One-line status for shell prompts
@@ -53,7 +53,7 @@ fn main() {
                 run_tray();
             }
         }
-        Some(Command::Tui) => run_tui(),
+        Some(Command::Watch) => run_tui(),
         Some(Command::Tray) => run_tray(),
         Some(Command::Status) => run_status(),
         Some(Command::Serve) => run_serve(),
