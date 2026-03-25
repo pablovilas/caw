@@ -1,8 +1,6 @@
 use caw_core::{NormalizedSession, SessionStatus};
 use muda::{Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 use tray_icon::TrayIcon;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -117,27 +115,14 @@ pub struct TrayState {
     pid_map: HashMap<String, u32>,
     group_by: GroupBy,
     live_menu: Option<LiveMenu>,
-    menu_open_time: Option<Instant>,
-}
-
-static REBUILD_SIGNAL: std::sync::LazyLock<Arc<tokio::sync::Notify>> =
-    std::sync::LazyLock::new(|| Arc::new(tokio::sync::Notify::new()));
-
-pub fn rebuild_signal() -> Arc<tokio::sync::Notify> {
-    REBUILD_SIGNAL.clone()
+    /// Cached sessions for immediate rebuild on grouping change
+    last_sessions: Vec<NormalizedSession>,
 }
 
 fn compute_fingerprint(sessions: &[NormalizedSession], group_by: GroupBy) -> String {
     let mut ids: Vec<&str> = sessions.iter().map(|s| s.id.as_str()).collect();
     ids.sort();
     format!("{}:{}", group_by.id_char(), ids.join(","))
-}
-
-fn is_menu_open(open_time: &Option<Instant>) -> bool {
-    match open_time {
-        Some(t) if t.elapsed() < Duration::from_secs(30) => true,
-        _ => false,
-    }
 }
 
 fn load_icon() -> tray_icon::Icon {
@@ -168,7 +153,7 @@ impl TrayState {
             pid_map: HashMap::new(),
             group_by: GroupBy::Project,
             live_menu: Some(live),
-            menu_open_time: None,
+            last_sessions: Vec::new(),
         }
     }
 }
@@ -176,15 +161,12 @@ impl TrayState {
 pub fn handle_menu_event(state: &mut TrayState, event: &muda::MenuEvent) {
     let id = event.id.0.as_str();
 
-    // Any menu-item click means the menu is closing
-    state.menu_open_time = None;
-
     match id {
         "quit" => std::process::exit(0),
         _ if GroupBy::from_id(id).is_some() => {
             state.group_by = GroupBy::from_id(id).unwrap();
-            // Wake background loop for immediate rebuild with new grouping
-            REBUILD_SIGNAL.notify_one();
+            // Rebuild immediately from cached sessions — no need to wait for background
+            full_rebuild(state, &state.last_sessions.clone());
         }
         _ => {
             if let Some(&pid) = state.pid_map.get(id) {
@@ -196,36 +178,35 @@ pub fn handle_menu_event(state: &mut TrayState, event: &muda::MenuEvent) {
     }
 }
 
-pub fn handle_tray_event(state: &mut TrayState, event: &tray_icon::TrayIconEvent) {
-    if let tray_icon::TrayIconEvent::Click { .. } = event {
-        state.menu_open_time = Some(Instant::now());
-    }
-}
-
 pub fn update_from_snapshot(state: &mut TrayState, sessions: &[NormalizedSession]) {
+    state.last_sessions = sessions.to_vec();
+
     let current_group = state.group_by;
     let new_fp = compute_fingerprint(sessions, current_group);
-    let menu_open = is_menu_open(&state.menu_open_time);
 
     let needs_structural_rebuild = state
         .live_menu
         .as_ref()
         .map_or(true, |m| m.fingerprint != new_fp);
 
-    if needs_structural_rebuild && !menu_open {
-        // Structure changed and menu is closed — full rebuild
-        let (menu, live) = build_menu(sessions, &state.pid_map, current_group);
-        state.pid_map = extract_pid_map(sessions);
-        let tooltip = build_tooltip(sessions);
-        state.tray_icon.set_menu(Some(Box::new(menu)));
-        let _ = state.tray_icon.set_tooltip(Some(&tooltip));
-        state.live_menu = Some(live);
+    if needs_structural_rebuild {
+        // Sessions added/removed — must rebuild
+        full_rebuild(state, sessions);
     } else {
-        // Either no structural change, or menu is open — update texts in-place
+        // Same structure — update texts in-place (doesn't close menu)
         update_texts_in_place(state, sessions);
         let tooltip = build_tooltip(sessions);
         let _ = state.tray_icon.set_tooltip(Some(&tooltip));
     }
+}
+
+fn full_rebuild(state: &mut TrayState, sessions: &[NormalizedSession]) {
+    let (menu, live) = build_menu(sessions, &state.pid_map, state.group_by);
+    state.pid_map = extract_pid_map(sessions);
+    let tooltip = build_tooltip(sessions);
+    state.tray_icon.set_menu(Some(Box::new(menu)));
+    let _ = state.tray_icon.set_tooltip(Some(&tooltip));
+    state.live_menu = Some(live);
 }
 
 fn extract_pid_map(sessions: &[NormalizedSession]) -> HashMap<String, u32> {

@@ -49,19 +49,14 @@ fn main() {
     // Channel for background task to send session snapshots to main thread
     let (snapshot_tx, snapshot_rx) = mpsc::channel::<Vec<NormalizedSession>>();
 
-    // Background task: poll monitor every 5s (or on rebuild signal)
+    // Background task: poll monitor every 5s
     let bg_monitor = monitor.clone();
-    let rebuild_signal = tray::rebuild_signal();
     rt.spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         loop {
             let sessions = bg_monitor.snapshot().await;
             let _ = snapshot_tx.send(sessions);
-
-            tokio::select! {
-                _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {},
-                _ = rebuild_signal.notified() => {},
-            }
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         }
     });
 
@@ -109,13 +104,7 @@ fn run_macos_event_loop(
             tray::handle_menu_event(tray_state, &event);
         }
 
-        // Process tray icon events
-        if let Ok(event) = tray_icon::TrayIconEvent::receiver().try_recv() {
-            tray::handle_tray_event(tray_state, &event);
-        }
-
-        // Process session snapshots from background task
-        // Take the latest one (drain queue)
+        // Process session snapshots from background task (take latest)
         let mut latest_snapshot = None;
         while let Ok(sessions) = snapshot_rx.try_recv() {
             latest_snapshot = Some(sessions);
@@ -136,9 +125,6 @@ fn run_generic_event_loop(
     loop {
         if let Ok(event) = muda::MenuEvent::receiver().try_recv() {
             tray::handle_menu_event(tray_state, &event);
-        }
-        if let Ok(event) = tray_icon::TrayIconEvent::receiver().try_recv() {
-            tray::handle_tray_event(tray_state, &event);
         }
         let mut latest_snapshot = None;
         while let Ok(sessions) = snapshot_rx.try_recv() {
