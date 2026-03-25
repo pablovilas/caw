@@ -12,10 +12,23 @@ builds:
       - -p=caw
     targets:
       - aarch64-apple-darwin
+    post_hooks:
+      - cmd: >
+          sh -c '
+          APP="{{ .Path }}.app";
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources";
+          cp "{{ .Path }}" "$APP/Contents/MacOS/caw";
+          cp crates/caw/icons/caw.icns "$APP/Contents/Resources/";
+          cp crates/caw/macos/Info.plist "$APP/Contents/";
+          '
 
 archives:
   - id: caw
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - src: "dist/caw_aarch64-apple-darwin/caw.app/**"
+        dst: "caw.app"
+        strip_parent: true
 
 checksum:
   name_template: "checksums.txt"
@@ -39,6 +52,7 @@ brews:
     description: "Monitor your AI coding assistants"
     license: "MIT"
     install: |
-      bin.install "caw"
+      prefix.install "caw.app"
+      bin.write_exec_script prefix/"caw.app/Contents/MacOS/caw"
     test: |
       system "#{bin}/caw", "--help"
