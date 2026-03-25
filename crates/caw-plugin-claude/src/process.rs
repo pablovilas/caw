@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 /// Encode a filesystem path the same way Claude does for project dir names.
 fn encode_path(path: &std::path::Path) -> String {
-    path.to_string_lossy().replace('/', "-")
+    path.to_string_lossy().replace(['/', '.'], "-")
 }
 
 /// Find the most recently modified JSONL for a given project directory.
