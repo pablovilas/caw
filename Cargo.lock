@@ -218,7 +218,7 @@ dependencies = [
 
 [[package]]
 name = "caw"
-version = "0.1.0"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "caw-core",
@@ -246,7 +246,7 @@ dependencies = [
 
 [[package]]
 name = "caw-core"
-version = "0.1.0"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -261,7 +261,7 @@ dependencies = [
 
 [[package]]
 name = "caw-plugin-claude"
-version = "0.1.0"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -277,7 +277,7 @@ dependencies = [
 
 [[package]]
 name = "caw-plugin-codex"
-version = "0.1.0"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -292,7 +292,7 @@ dependencies = [
 
 [[package]]
 name = "caw-plugin-opencode"
-version = "0.1.0"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",

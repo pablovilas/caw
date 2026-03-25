@@ -18,6 +18,7 @@ use std::sync::{mpsc, Arc, Mutex};
 #[derive(Parser)]
 #[command(
     name = "caw",
+    version,
     about = "Monitor your AI coding assistants",
     long_about = "Monitor your AI coding assistants.\n\n\
         Track Claude Code, Codex, and OpenCode sessions — see status, tokens,\n\
