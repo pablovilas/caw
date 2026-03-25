@@ -64,33 +64,34 @@ impl GroupBy {
         } else {
             format!(" — {}", msg)
         };
+        let status = format!("{} [{}]", s.status.symbol(), s.status.label());
 
         match self {
             Self::None => format!(
-                "{} {}  {}  {}{}",
-                s.status.symbol(),
+                "{} - {}  {}  {}{}",
+                status,
                 s.project_name,
                 s.display_name,
                 s.app_name.as_deref().unwrap_or(""),
                 msg_part,
             ),
             Self::Project => format!(
-                "  {} {}  {}{}",
-                s.status.symbol(),
+                "  {} - {}  {}{}",
+                status,
                 s.display_name,
                 s.app_name.as_deref().unwrap_or(""),
                 msg_part,
             ),
             Self::App => format!(
-                "  {} {}  {}{}",
-                s.status.symbol(),
+                "  {} - {}  {}{}",
+                status,
                 s.project_name,
                 s.display_name,
                 msg_part,
             ),
             Self::Assistant => format!(
-                "  {} {}  {}{}",
-                s.status.symbol(),
+                "  {} - {}  {}{}",
+                status,
                 s.project_name,
                 s.app_name.as_deref().unwrap_or(""),
                 msg_part,

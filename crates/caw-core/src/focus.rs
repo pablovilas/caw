@@ -100,12 +100,33 @@ fn find_owner_app(pid: u32) -> Option<String> {
 
         let ppid = get_ppid(current)?;
         if ppid <= 1 {
-            let cmd = get_command(ppid)?;
-            return extract_app_path(&cmd);
+            // Reached launchd without finding a .app in the process tree.
+            // Fall back to checking which app owns the TTY (handles Terminal.app
+            // whose child processes are login/shell with no .app in the path).
+            return get_tty(pid).and_then(|tty| find_app_by_tty(&tty));
         }
         current = ppid;
     }
 
+    None
+}
+
+/// Use lsof to find which .app owns the given TTY device.
+fn find_app_by_tty(tty: &str) -> Option<String> {
+    let output = Command::new("lsof")
+        .args(["-t", tty])
+        .output()
+        .ok()?;
+    let pids_str = String::from_utf8_lossy(&output.stdout);
+    for line in pids_str.lines() {
+        if let Ok(pid) = line.trim().parse::<u32>() {
+            if let Some(cmd) = get_command(pid) {
+                if let Some(app) = extract_app_path(&cmd) {
+                    return Some(app);
+                }
+            }
+        }
+    }
     None
 }
 
