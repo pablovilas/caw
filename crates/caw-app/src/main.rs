@@ -1,7 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod tray;
-mod ws;
 
 use caw_core::{Monitor, NormalizedSession, PluginRegistry, ProcessScanner};
 use caw_plugin_claude::ClaudePlugin;
