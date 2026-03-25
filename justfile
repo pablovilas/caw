@@ -39,8 +39,9 @@ update-homebrew version:
       sleep 10
     done
     echo "SHA256: $SHA"
-    git clone "https://x-access-token:${GH_TOKEN}@github.com/pablovilas/homebrew-tap.git" tap
+    git clone "https://github.com/pablovilas/homebrew-tap.git" tap
     cd tap
+    git config url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
     cat > Formula/caw.rb << FORMULA
     class Caw < Formula
       desc "Monitor your AI coding assistants"
