@@ -1,4 +1,4 @@
-<p align="left">
+<p align="center">
   <img src="docs/banner.png" alt="caw — coding assistant watcher" width="460">
 </p>
 
