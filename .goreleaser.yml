@@ -12,21 +12,27 @@ builds:
       - -p=caw
     targets:
       - aarch64-apple-darwin
-    post_hooks:
-      - cmd: >
-          sh -c '
-          APP="{{ .Path }}.app";
+
+# Assemble .app bundle after build, before archiving
+after:
+  hooks:
+    - cmd: >
+        sh -c '
+        for BIN in dist/caw_*/caw; do
+          DIR=$(dirname "$BIN");
+          APP="$DIR/caw.app";
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources";
-          cp "{{ .Path }}" "$APP/Contents/MacOS/caw";
+          cp "$BIN" "$APP/Contents/MacOS/caw";
           cp crates/caw/icons/caw.icns "$APP/Contents/Resources/";
           cp crates/caw/macos/Info.plist "$APP/Contents/";
-          '
+        done
+        '
 
 archives:
   - id: caw
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
-      - src: "dist/caw_aarch64-apple-darwin/caw.app/**"
+      - src: "dist/caw_aarch64-apple-darwin/caw.app/**/*"
         dst: "caw.app"
         strip_parent: true
 
