@@ -1,5 +1,6 @@
 use caw_core::{NormalizedSession, SessionStatus};
-use muda::{Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu};
+use crate::autostart;
+use muda::{CheckMenuItem, Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use std::collections::HashMap;
 use tray_icon::TrayIcon;
 
@@ -157,6 +158,10 @@ pub fn handle_menu_event(state: &mut TrayState, event: &muda::MenuEvent) {
 
     match id {
         "quit" => std::process::exit(0),
+        "login-toggle" => {
+            let currently_enabled = autostart::is_enabled();
+            autostart::set_enabled(!currently_enabled);
+        }
         _ if GroupBy::from_id(id).is_some() => {
             state.group_by = GroupBy::from_id(id).unwrap();
             let sessions = state.last_sessions.clone();
@@ -322,6 +327,17 @@ fn build_menu(sessions: &[NormalizedSession], group_by: GroupBy) -> (Menu, LiveM
     let _ = group_submenu.append(&PredefinedMenuItem::separator());
     let _ = group_submenu.append(&MenuItem::with_id(MenuId::new("group-none"), check(GroupBy::None), true, None));
     let _ = menu.append(&group_submenu);
+
+    // Launch at Login (only when running from .app bundle)
+    if autostart::is_app_bundle() {
+        let _ = menu.append(&CheckMenuItem::with_id(
+            MenuId::new("login-toggle"),
+            "Launch at Login",
+            true,
+            autostart::is_enabled(),
+            None,
+        ));
+    }
 
     let _ = menu.append(&PredefinedMenuItem::separator());
     let _ = menu.append(&MenuItem::with_id(MenuId::new("quit"), "Quit caw", true, None));
