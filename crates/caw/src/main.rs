@@ -13,7 +13,20 @@ use std::io::IsTerminal;
 use std::sync::{mpsc, Arc, Mutex};
 
 #[derive(Parser)]
-#[command(name = "caw", about = "coding assistant watcher")]
+#[command(
+    name = "caw",
+    about = "Monitor your AI coding assistants",
+    long_about = "Monitor your AI coding assistants.\n\n\
+        Track Claude Code, Codex, and OpenCode sessions — see status, tokens,\n\
+        and last messages at a glance.\n\n\
+        With no subcommand, auto-detects the environment:\n\
+        interactive terminal launches the dashboard, background launches the tray.",
+    after_help = "Examples:\n  \
+        caw              Auto-detect mode (dashboard or tray)\n  \
+        caw watch        Force the live dashboard\n  \
+        caw tray         Force the menu bar app\n  \
+        caw status       Print status for shell prompt integration"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
@@ -21,15 +34,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Live interactive dashboard
+    /// Live interactive dashboard for monitoring sessions
     Watch,
-    /// System tray app
+    /// Menu bar app with session overview and quick actions
     Tray,
-    /// One-line status for shell prompts
+    /// One-line status for shell prompt integration (e.g. 2w 1a 0i)
     Status,
-    /// Headless daemon mode
+    /// Run as a background daemon, logging monitor events
     Serve,
-    /// Debug process discovery
+    /// Print raw process discovery info for troubleshooting
     Debug,
 }
 
