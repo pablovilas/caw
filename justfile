@@ -52,14 +52,21 @@ bundle: build
 release-dry-run:
     goreleaser release --clean --snapshot
 
-# Tag and push a release (runs CI first)
+# Tag and push a release (bumps version, runs CI, tags, pushes)
 release version:
-    @echo "Running checks before release..."
+    #!/bin/sh
+    set -e
+    echo "Bumping version to {{version}}..."
+    sed -i '' 's/^version = ".*"/version = "{{version}}"/' Cargo.toml
+    cargo check -p caw --quiet
+    git add Cargo.toml Cargo.lock
+    git commit -m "chore: bump version to {{version}}"
+    echo "Running checks..."
     just ci
-    @echo "Tagging v{{version}}..."
+    echo "Tagging v{{version}}..."
     git tag "v{{version}}"
-    git push origin "v{{version}}"
-    @echo "Release v{{version}} pushed. GoReleaser will build and publish."
+    git push origin main "v{{version}}"
+    echo "Release v{{version}} pushed. GoReleaser will build and publish."
 
 # Run the app
 run *args:
