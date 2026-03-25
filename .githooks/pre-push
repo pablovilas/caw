@@ -3,6 +3,5 @@ set -e
 export PATH="$HOME/.cargo/bin:$PATH"
 
 echo "Running pre-push checks..."
-cargo clippy --workspace -- -D warnings
-cargo test --workspace
+just ci
 echo "All checks passed."

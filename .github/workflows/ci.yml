@@ -18,6 +18,5 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check --workspace
-      - run: cargo clippy --workspace -- -D warnings
-      - run: cargo test --workspace
+      - uses: extractions/setup-just@v2
+      - run: just ci
