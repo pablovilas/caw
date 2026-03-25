@@ -17,6 +17,14 @@ use std::sync::{mpsc, Arc, Mutex};
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
+
+    /// Launch the system tray app
+    #[arg(long, conflicts_with = "ui")]
+    tray: bool,
+
+    /// Launch the interactive TUI dashboard
+    #[arg(long, conflicts_with = "tray")]
+    ui: bool,
 }
 
 #[derive(Subcommand)]
@@ -46,6 +54,8 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
+        None if cli.tray => run_tray(),
+        None if cli.ui => run_tui(),
         None => {
             if std::io::stdout().is_terminal() {
                 run_tui();
