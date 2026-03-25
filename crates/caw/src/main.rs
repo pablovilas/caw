@@ -19,12 +19,8 @@ struct Cli {
     command: Option<Command>,
 
     /// Launch the system tray app
-    #[arg(long, conflicts_with = "ui")]
+    #[arg(long)]
     tray: bool,
-
-    /// Launch the interactive TUI dashboard
-    #[arg(long, conflicts_with = "tray")]
-    ui: bool,
 }
 
 #[derive(Subcommand)]
@@ -55,7 +51,6 @@ fn main() {
 
     match cli.command {
         None if cli.tray => run_tray(),
-        None if cli.ui => run_tui(),
         None => {
             if std::io::stdout().is_terminal() {
                 run_tui();
