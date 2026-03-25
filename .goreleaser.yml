@@ -5,6 +5,8 @@ builds:
     builder: rust
     binary: caw
     dir: .
+    tool: cargo
+    command: build
     flags:
       - --release
       - -p=caw
@@ -13,7 +15,6 @@ builds:
 
 archives:
   - id: caw
-    format: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
@@ -41,4 +42,3 @@ brews:
       bin.install "caw"
     test: |
       system "#{bin}/caw", "--help"
-
