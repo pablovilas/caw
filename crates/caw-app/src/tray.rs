@@ -216,9 +216,11 @@ pub fn handle_menu_event(state: &mut TrayState, event: &muda::MenuEvent) {
         _ if GroupBy::from_id(id).is_some() => {
             state.group_by = GroupBy::from_id(id).unwrap();
             update_group_checkmarks(state);
-            // Rebuild dynamic section in-place (menu stays open)
             let sessions = state.last_sessions.clone();
             rebuild_dynamic_section(state, &sessions);
+            // Reopen menu — clicking an NSMenuItem always closes the menu,
+            // so we immediately re-show it via popUpMenu.
+            reshow_menu(state);
         }
         _ => {
             if let Some(&pid) = state.pid_map.get(id) {
@@ -466,6 +468,26 @@ fn status_ord(status: &SessionStatus) -> u8 {
         SessionStatus::Idle => 2,
         SessionStatus::Dead => 3,
     }
+}
+
+/// Re-show the menu after a grouping change. On macOS, clicking any NSMenuItem
+/// closes the menu, so we immediately pop it back up at the mouse position.
+#[cfg(target_os = "macos")]
+fn reshow_menu(state: &TrayState) {
+    use muda::ContextMenu;
+    use objc2_app_kit::{NSEvent, NSMenu};
+    unsafe {
+        let ns_menu_ptr = state.menu.ns_menu();
+        let ns_menu: &NSMenu = &*(ns_menu_ptr as *const NSMenu);
+        let mouse = NSEvent::mouseLocation();
+        ns_menu.popUpMenuPositioningItem_atLocation_inView(None, mouse, None);
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn reshow_menu(_state: &TrayState) {
+    // On other platforms, menu item clicks may not close the menu,
+    // or we'd need a platform-specific approach.
 }
 
 fn truncate_message(msg: Option<&str>, max_len: usize) -> String {
