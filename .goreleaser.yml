@@ -1,0 +1,43 @@
+version: 2
+
+builds:
+  - id: caw
+    builder: rust
+    binary: caw
+    dir: .
+    flags:
+      - --release
+      - -p=caw
+    targets:
+      - aarch64-apple-darwin
+
+archives:
+  - id: caw
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+brews:
+  - name: caw
+    repository:
+      owner: pablovilas
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/pablovilas/caw"
+    description: "Monitor your AI coding assistants"
+    license: "MIT"
+    install: |
+      bin.install "caw"
+    test: |
+      system "#{bin}/caw", "--help"
