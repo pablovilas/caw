@@ -17,6 +17,15 @@ build:
 run *args:
     cargo run -p caw -- {{args}}
 
+# Tag and push a release (runs CI first)
+release version:
+    @echo "Running checks before release..."
+    just ci
+    @echo "Tagging {{version}}..."
+    git tag "v{{version}}"
+    git push origin "v{{version}}"
+    @echo "Release v{{version}} pushed. GitHub Actions will build and publish."
+
 # Set up git hooks
 setup:
     git config core.hooksPath .githooks
