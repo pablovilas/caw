@@ -1,0 +1,27 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="900" fill="#0B0C0D"/>
+  <g opacity="0.26">
+    <path d="M120 0V900" stroke="#34383B"/>
+    <path d="M280 0V900" stroke="#34383B"/>
+    <path d="M440 0V900" stroke="#34383B"/>
+    <path d="M600 0V900" stroke="#34383B"/>
+    <path d="M760 0V900" stroke="#34383B"/>
+    <path d="M920 0V900" stroke="#34383B"/>
+    <path d="M1080 0V900" stroke="#34383B"/>
+    <path d="M1240 0V900" stroke="#34383B"/>
+    <path d="M1400 0V900" stroke="#34383B"/>
+    <path d="M0 110H1600" stroke="#34383B"/>
+    <path d="M0 220H1600" stroke="#34383B"/>
+    <path d="M0 330H1600" stroke="#34383B"/>
+    <path d="M0 440H1600" stroke="#34383B"/>
+    <path d="M0 550H1600" stroke="#34383B"/>
+    <path d="M0 660H1600" stroke="#34383B"/>
+    <path d="M0 770H1600" stroke="#34383B"/>
+  </g>
+  <path d="M88 178H530" stroke="#1D9E75" stroke-opacity="0.55" stroke-width="2"/>
+  <path d="M88 202H420" stroke="#A7AAA4" stroke-opacity="0.35" stroke-width="2"/>
+  <path d="M1040 672H1512" stroke="#EF9F27" stroke-opacity="0.55" stroke-width="2"/>
+  <path d="M1160 696H1512" stroke="#A7AAA4" stroke-opacity="0.35" stroke-width="2"/>
+  <circle cx="530" cy="178" r="6" fill="#1D9E75"/>
+  <path d="M1040 660L1052 684H1028L1040 660Z" fill="#EF9F27"/>
+</svg>

@@ -1,0 +1,38 @@
+:root {
+  --caw-color-raven: #0b0c0d;
+  --caw-color-coal: #141618;
+  --caw-color-graphite: #212529;
+  --caw-color-bone: #eae6dd;
+  --caw-color-mist: #a7aaa4;
+  --caw-color-ash: #5d615d;
+  --caw-color-signal-line: #2a2d2f;
+  --caw-color-soft-line: #34383b;
+
+  --caw-status-working: #1d9e75;
+  --caw-status-waiting: #ef9f27;
+  --caw-status-idle: #888780;
+  --caw-status-dead: #e24b4a;
+  --caw-accent-teal-glow: #7cc8b2;
+
+  --caw-font-display: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+  --caw-font-ui: "IBM Plex Sans", "Inter", "Segoe UI", sans-serif;
+  --caw-font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+
+  --caw-size-hero: 64px;
+  --caw-size-title: 32px;
+  --caw-size-section: 20px;
+  --caw-size-body: 15px;
+  --caw-size-meta: 12px;
+
+  --caw-radius-panel: 12px;
+  --caw-radius-card: 20px;
+  --caw-radius-badge: 32px;
+
+  --caw-motion-fast: 160ms;
+  --caw-motion-base: 220ms;
+  --caw-motion-slow: 480ms;
+  --caw-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --caw-shadow-panel: 0 12px 32px rgba(0, 0, 0, 0.35);
+  --caw-shadow-badge: 0 24px 64px rgba(0, 0, 0, 0.45);
+}

@@ -1,0 +1,77 @@
+{
+  "meta": {
+    "name": "caw",
+    "version": "1.0.0",
+    "updated": "2026-03-25",
+    "description": "Brand and UI tokens for coding assistant watcher."
+  },
+  "brand": {
+    "name": "caw",
+    "descriptor": "coding assistant watcher",
+    "tagline": "Watch every coding agent from one quiet perch."
+  },
+  "color": {
+    "canvas": {
+      "raven": "#0B0C0D",
+      "coal": "#141618",
+      "graphite": "#212529"
+    },
+    "content": {
+      "primary": "#EAE6DD",
+      "secondary": "#A7AAA4",
+      "muted": "#5D615D"
+    },
+    "line": {
+      "signal": "#2A2D2F",
+      "soft": "#34383B"
+    },
+    "status": {
+      "working": "#1D9E75",
+      "waiting": "#EF9F27",
+      "idle": "#888780",
+      "dead": "#E24B4A"
+    },
+    "accent": {
+      "tealGlow": "#7CC8B2"
+    }
+  },
+  "typography": {
+    "display": {
+      "family": "\"Space Grotesk\", \"Avenir Next\", \"Segoe UI\", sans-serif",
+      "weight": 700,
+      "tracking": "-0.04em"
+    },
+    "ui": {
+      "family": "\"IBM Plex Sans\", \"Inter\", \"Segoe UI\", sans-serif",
+      "weight": 500,
+      "tracking": "-0.01em"
+    },
+    "mono": {
+      "family": "\"IBM Plex Mono\", \"SFMono-Regular\", Consolas, monospace",
+      "weight": 500,
+      "tracking": "0em"
+    },
+    "size": {
+      "hero": "64px",
+      "title": "32px",
+      "section": "20px",
+      "body": "15px",
+      "meta": "12px"
+    }
+  },
+  "radius": {
+    "panel": "12px",
+    "card": "20px",
+    "badge": "32px"
+  },
+  "motion": {
+    "fast": "160ms",
+    "base": "220ms",
+    "slow": "480ms",
+    "easeStandard": "cubic-bezier(0.22, 1, 0.36, 1)"
+  },
+  "shadow": {
+    "panel": "0 12px 32px rgba(0, 0, 0, 0.35)",
+    "badge": "0 24px 64px rgba(0, 0, 0, 0.45)"
+  }
+}

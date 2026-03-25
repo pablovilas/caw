@@ -41,3 +41,4 @@ brews:
       bin.install "caw"
     test: |
       system "#{bin}/caw", "--help"
+

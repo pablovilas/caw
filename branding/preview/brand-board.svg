@@ -1,0 +1,71 @@
+<svg width="1600" height="1200" viewBox="0 0 1600 1200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="scanlines" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+      <rect width="10" height="10" fill="#EAE6DD"/>
+      <rect y="4" width="10" height="1.5" fill="#0B0C0D" fill-opacity="0.92"/>
+    </pattern>
+    <clipPath id="crow">
+      <path d="M92 336C108 239 175 142 286 130L360 92L340 138H294C324 154 338 186 338 229C338 314 283 385 201 413L255 466H173L191 411L125 474L146 398H92V336Z"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1600" height="1200" fill="#0B0C0D"/>
+  <text x="88" y="108" fill="#EAE6DD" font-family="'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif" font-size="82" font-weight="700" letter-spacing="-4">caw brand board</text>
+  <text x="90" y="150" fill="#A7AAA4" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="24" letter-spacing="2">coding assistant watcher</text>
+
+  <rect x="88" y="194" width="1424" height="2" fill="#2A2D2F"/>
+
+  <g transform="translate(116 178) scale(0.82)">
+    <g clip-path="url(#crow)">
+      <rect x="70" y="80" width="320" height="394" fill="url(#scanlines)"/>
+    </g>
+    <path d="M201 188C190 231 221 264 268 264C320 264 360 228 370 175C347 161 319 154 288 154C236 154 210 167 201 188Z" fill="#EAE6DD"/>
+    <circle cx="283" cy="171" r="19" fill="#0B0C0D"/>
+    <path d="M289 130L360 92L340 138H296L289 130Z" fill="#EAE6DD"/>
+    <path d="M181 409L226 463H173L181 409Z" fill="#EAE6DD"/>
+    <path d="M191 411L125 474L146 398L191 411Z" fill="#EAE6DD"/>
+  </g>
+
+  <text x="420" y="292" fill="#EAE6DD" font-family="'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif" font-size="120" font-weight="700" letter-spacing="-6">caw</text>
+  <text x="426" y="340" fill="#A7AAA4" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="22" font-weight="500" letter-spacing="2">Watch every coding agent from one quiet perch.</text>
+
+  <text x="88" y="498" fill="#A7AAA4" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="22" letter-spacing="2">palette</text>
+  <g transform="translate(88 530)">
+    <rect width="212" height="128" rx="18" fill="#0B0C0D" stroke="#34383B"/>
+    <text x="18" y="42" fill="#EAE6DD" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="20">Raven</text>
+    <text x="18" y="78" fill="#A7AAA4" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="18">#0B0C0D</text>
+  </g>
+  <g transform="translate(320 530)">
+    <rect width="212" height="128" rx="18" fill="#EAE6DD"/>
+    <text x="18" y="42" fill="#0B0C0D" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="20">Bone</text>
+    <text x="18" y="78" fill="#5D615D" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="18">#EAE6DD</text>
+  </g>
+  <g transform="translate(552 530)">
+    <rect width="212" height="128" rx="18" fill="#1D9E75"/>
+    <text x="18" y="42" fill="#EAE6DD" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="20">Working</text>
+    <text x="18" y="78" fill="#EAE6DD" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="18">#1D9E75</text>
+  </g>
+  <g transform="translate(784 530)">
+    <rect width="212" height="128" rx="18" fill="#EF9F27"/>
+    <text x="18" y="42" fill="#0B0C0D" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="20">Waiting</text>
+    <text x="18" y="78" fill="#0B0C0D" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="18">#EF9F27</text>
+  </g>
+  <g transform="translate(1016 530)">
+    <rect width="212" height="128" rx="18" fill="#888780"/>
+    <text x="18" y="42" fill="#0B0C0D" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="20">Idle</text>
+    <text x="18" y="78" fill="#0B0C0D" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="18">#888780</text>
+  </g>
+  <g transform="translate(1248 530)">
+    <rect width="212" height="128" rx="18" fill="#E24B4A"/>
+    <text x="18" y="42" fill="#EAE6DD" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="20">Dead</text>
+    <text x="18" y="78" fill="#EAE6DD" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="18">#E24B4A</text>
+  </g>
+
+  <text x="88" y="756" fill="#A7AAA4" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="22" letter-spacing="2">type</text>
+  <text x="88" y="846" fill="#EAE6DD" font-family="'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif" font-size="86" font-weight="700" letter-spacing="-4">Watchful, calm, exact.</text>
+  <text x="88" y="910" fill="#A7AAA4" font-family="'IBM Plex Sans', 'Inter', 'Segoe UI', sans-serif" font-size="30">Dense layouts, low drama, status-first composition.</text>
+  <text x="88" y="972" fill="#EAE6DD" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="26" letter-spacing="1.4">STATUS  PROJECT  ASSISTANT  LAST MESSAGE  TOKENS</text>
+
+  <text x="88" y="1096" fill="#A7AAA4" font-family="'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace" font-size="22" letter-spacing="2">ux principles</text>
+  <text x="88" y="1146" fill="#EAE6DD" font-family="'IBM Plex Sans', 'Inter', 'Segoe UI', sans-serif" font-size="28">Ambient first  /  Color means state  /  Terminal heritage  /  Motion follows change</text>
+</svg>

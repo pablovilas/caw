@@ -1,0 +1,21 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="scanlines" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+      <rect width="10" height="10" fill="#EAE6DD"/>
+      <rect y="4" width="10" height="1.5" fill="#0B0C0D" fill-opacity="0.92"/>
+    </pattern>
+    <clipPath id="crow">
+      <path d="M92 336C108 239 175 142 286 130L360 92L340 138H294C324 154 338 186 338 229C338 314 283 385 201 413L255 466H173L191 411L125 474L146 398H92V336Z"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#crow)">
+    <rect x="70" y="80" width="320" height="394" fill="url(#scanlines)"/>
+  </g>
+
+  <path d="M201 188C190 231 221 264 268 264C320 264 360 228 370 175C347 161 319 154 288 154C236 154 210 167 201 188Z" fill="#EAE6DD"/>
+  <circle cx="283" cy="171" r="19" fill="#0B0C0D"/>
+  <path d="M289 130L360 92L340 138H296L289 130Z" fill="#EAE6DD"/>
+  <path d="M181 409L226 463H173L181 409Z" fill="#EAE6DD"/>
+  <path d="M191 411L125 474L146 398L191 411Z" fill="#EAE6DD"/>
+</svg>
