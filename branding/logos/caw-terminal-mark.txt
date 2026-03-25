@@ -1,4 +1,0 @@
-  ⣠⣶⣖⣶⡖
-  ⠸⢿⣿⣿⡛⠁
-
-Use this mark for TUI or terminal-facing surfaces where the full vector logo would feel too heavy.

@@ -1,3 +1,7 @@
+<p align="left">
+  <img src="docs/banner.png" alt="caw — coding assistant watcher" width="460">
+</p>
+
 # caw
 
 **coding assistant watcher**
@@ -59,7 +63,7 @@ caw/
 │   ├── caw-plugin-codex/      # Codex CLI plugin
 │   ├── caw-plugin-opencode/   # OpenCode plugin
 │   └── caw/                   # Binary: tray, dashboard, CLI
-└── branding/                  # Brand kit and design tokens
+└── docs/                      # Assets and documentation
 ```
 
 ## Development
