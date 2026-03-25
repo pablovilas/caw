@@ -1,12 +1,37 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app;
 mod tray;
+mod ui;
 
 use caw_core::{Monitor, NormalizedSession, PluginRegistry, ProcessScanner};
 use caw_plugin_claude::ClaudePlugin;
 use caw_plugin_codex::CodexPlugin;
 use caw_plugin_opencode::OpenCodePlugin;
+use clap::{Parser, Subcommand};
+use std::io::IsTerminal;
 use std::sync::{mpsc, Arc, Mutex};
+
+#[derive(Parser)]
+#[command(name = "caw", about = "coding assistant watcher")]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Interactive TUI dashboard
+    Tui,
+    /// System tray app
+    Tray,
+    /// One-line status for shell prompts
+    Status,
+    /// Headless daemon mode
+    Serve,
+    /// Debug process discovery
+    Debug,
+}
 
 fn build_registry() -> PluginRegistry {
     let scanner = Arc::new(Mutex::new(ProcessScanner::new()));
@@ -18,6 +43,95 @@ fn build_registry() -> PluginRegistry {
 }
 
 fn main() {
+    let cli = Cli::parse();
+
+    match cli.command {
+        None => {
+            if std::io::stdout().is_terminal() {
+                run_tui();
+            } else {
+                run_tray();
+            }
+        }
+        Some(Command::Tui) => run_tui(),
+        Some(Command::Tray) => run_tray(),
+        Some(Command::Status) => run_status(),
+        Some(Command::Serve) => run_serve(),
+        Some(Command::Debug) => {
+            caw_plugin_claude::debug::debug_processes();
+        }
+    }
+}
+
+fn run_tui() {
+    tracing_subscriber::fmt()
+        .with_env_filter("caw=debug")
+        .with_writer(std::io::stderr)
+        .init();
+
+    let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+    rt.block_on(async {
+        let registry = build_registry();
+        app::run_tui(registry).await.expect("TUI failed");
+    });
+}
+
+fn run_status() {
+    let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+    rt.block_on(async {
+        let registry = build_registry();
+        let monitor = Monitor::new(registry);
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        let sessions = monitor.snapshot().await;
+
+        let working = sessions
+            .iter()
+            .filter(|s| s.status == caw_core::SessionStatus::Working)
+            .count();
+        let waiting = sessions
+            .iter()
+            .filter(|s| s.status == caw_core::SessionStatus::WaitingInput)
+            .count();
+        let idle = sessions
+            .iter()
+            .filter(|s| s.status == caw_core::SessionStatus::Idle)
+            .count();
+
+        if sessions.is_empty() {
+            println!("no sessions");
+        } else {
+            println!("{}w {}a {}i", working, waiting, idle);
+        }
+    });
+}
+
+fn run_serve() {
+    tracing_subscriber::fmt()
+        .with_env_filter("caw=info")
+        .init();
+    tracing::info!("caw daemon starting...");
+
+    let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+    rt.block_on(async {
+        let registry = build_registry();
+        let monitor = Monitor::new(registry);
+        let mut rx = monitor.subscribe();
+
+        loop {
+            match rx.recv().await {
+                Ok(event) => {
+                    tracing::info!(?event, "monitor event");
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                    tracing::warn!("Lagged behind by {} events", n);
+                }
+                Err(_) => break,
+            }
+        }
+    });
+}
+
+fn run_tray() {
     tracing_subscriber::fmt()
         .with_env_filter("caw=info")
         .init();

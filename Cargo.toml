@@ -5,8 +5,7 @@ members = [
     "crates/caw-plugin-claude",
     "crates/caw-plugin-codex",
     "crates/caw-plugin-opencode",
-    "crates/caw-cli",
-    "crates/caw-app",
+    "crates/caw",
 ]
 
 [workspace.package]

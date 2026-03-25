@@ -1,5 +1,5 @@
 [package]
-name = "caw-cli"
+name = "caw"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -24,3 +24,11 @@ clap = { version = "4", features = ["derive"] }
 ratatui = "0.29"
 crossterm = { version = "0.28", features = ["event-stream"] }
 futures-util = "0.3"
+tray-icon = "0.21"
+muda = "0.17"
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSRunningApplication", "NSEvent"] }
+objc2-foundation = "0.3"
