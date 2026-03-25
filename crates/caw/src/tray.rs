@@ -340,7 +340,13 @@ fn build_menu(sessions: &[NormalizedSession], group_by: GroupBy) -> (Menu, LiveM
     }
 
     let _ = menu.append(&PredefinedMenuItem::separator());
-    let _ = menu.append(&MenuItem::with_id(MenuId::new("quit"), "Quit caw", true, None));
+    let _ = menu.append(&MenuItem::with_id(
+        MenuId::new("version"),
+        format!("caw v{}", env!("CARGO_PKG_VERSION")),
+        false,
+        None,
+    ));
+    let _ = menu.append(&MenuItem::with_id(MenuId::new("quit"), "Quit", true, None));
 
     (menu, LiveMenu { fingerprint, summary: summary_item, sessions: session_items })
 }
