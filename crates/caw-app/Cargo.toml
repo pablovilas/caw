@@ -4,17 +4,18 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 
-[build-dependencies]
-tauri-build = { version = "2", features = [] }
+[[bin]]
+name = "caw"
+path = "src/main.rs"
 
 [dependencies]
-caw-core = { path = "../../caw-core" }
-caw-plugin-claude = { path = "../../caw-plugin-claude" }
-caw-plugin-codex = { path = "../../caw-plugin-codex" }
-caw-plugin-opencode = { path = "../../caw-plugin-opencode" }
-tauri = { version = "2", features = ["tray-icon", "image-png"] }
-tauri-plugin-autostart = "2"
-tauri-plugin-shell = "2"
+caw-core = { path = "../caw-core" }
+caw-plugin-claude = { path = "../caw-plugin-claude" }
+caw-plugin-codex = { path = "../caw-plugin-codex" }
+caw-plugin-opencode = { path = "../caw-plugin-opencode" }
+tray-icon = "0.21"
+muda = "0.17"
+image = { version = "0.25", default-features = false, features = ["png"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -23,6 +24,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tokio-tungstenite = "0.26"
 futures-util = "0.3"
 
-[lib]
-name = "caw_app_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSRunningApplication"] }
+objc2-foundation = "0.3"
