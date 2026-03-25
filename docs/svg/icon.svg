@@ -1,0 +1,15 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <mask id="crowMark">
+      <rect width="512" height="512" fill="black"/>
+      <path d="M120 256C120 163 188 94 281 94C328 94 371 111 406 144L352 196C329 176 308 166 282 166C223 166 188 206 188 256C188 306 223 346 282 346C311 346 336 336 360 316L416 368C377 403 330 420 279 420C188 420 120 350 120 256Z" fill="white"/>
+      <path d="M314 221L458 256L314 291L350 256L314 221Z" fill="white"/>
+      <path d="M230 137L352 96L319 160L230 157V137Z" fill="white"/>
+      <path d="M170 332L102 456L229 370L170 332Z" fill="white"/>
+      <path d="M229 368L286 454H191L229 368Z" fill="white"/>
+      <circle cx="269" cy="255" r="25" fill="black"/>
+    </mask>
+  </defs>
+
+  <rect width="512" height="512" fill="#0B0C0D" mask="url(#crowMark)"/>
+</svg>

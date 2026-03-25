@@ -1,0 +1,59 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <mask id="crowMark">
+      <rect width="512" height="512" fill="black"/>
+      <path d="M120 256C120 163 188 94 281 94C328 94 371 111 406 144L352 196C329 176 308 166 282 166C223 166 188 206 188 256C188 306 223 346 282 346C311 346 336 336 360 316L416 368C377 403 330 420 279 420C188 420 120 350 120 256Z" fill="white"/>
+      <path d="M314 221L458 256L314 291L350 256L314 221Z" fill="white"/>
+      <path d="M230 137L352 96L319 160L230 157V137Z" fill="white"/>
+      <path d="M170 332L102 456L229 370L170 332Z" fill="white"/>
+      <path d="M229 368L286 454H191L229 368Z" fill="white"/>
+      <circle cx="269" cy="255" r="25" fill="black"/>
+    </mask>
+    <linearGradient id="cardBg" x1="0" y1="0" x2="1600" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#141618"/>
+      <stop offset="1" stop-color="#0B0C0D"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1600" height="900" fill="#0B0C0D"/>
+  <rect x="40" y="40" width="1520" height="820" rx="44" fill="url(#cardBg)" stroke="#2A2D2F" stroke-width="2"/>
+
+  <!-- Scan lines -->
+  <g opacity="0.12">
+    <line x1="40" y1="160" x2="1560" y2="160" stroke="#EAE6DD" stroke-width="1"/>
+    <line x1="40" y1="280" x2="1560" y2="280" stroke="#EAE6DD" stroke-width="1"/>
+    <line x1="40" y1="400" x2="1560" y2="400" stroke="#EAE6DD" stroke-width="1"/>
+    <line x1="40" y1="520" x2="1560" y2="520" stroke="#EAE6DD" stroke-width="1"/>
+    <line x1="40" y1="640" x2="1560" y2="640" stroke="#EAE6DD" stroke-width="1"/>
+    <line x1="40" y1="760" x2="1560" y2="760" stroke="#EAE6DD" stroke-width="1"/>
+  </g>
+
+  <!-- Crow mark (left side) -->
+  <g transform="translate(120 140) scale(1.2)">
+    <rect width="512" height="512" fill="#F3EEE5" mask="url(#crowMark)"/>
+  </g>
+
+  <!-- Text (right side) -->
+  <text x="860" y="340" fill="#EAE6DD" font-family="'Space Grotesk', 'Avenir Next', sans-serif" font-size="160" font-weight="700" letter-spacing="-8">caw</text>
+  <text x="868" y="400" fill="#A7AAA4" font-family="'IBM Plex Mono', monospace" font-size="28" font-weight="500" letter-spacing="2">coding assistant watcher</text>
+
+  <!-- Tagline -->
+  <text x="868" y="490" fill="#EAE6DD" font-family="'IBM Plex Sans', sans-serif" font-size="48" font-weight="500">Watch every coding agent</text>
+  <text x="868" y="550" fill="#EAE6DD" font-family="'IBM Plex Sans', sans-serif" font-size="48" font-weight="500">from one quiet perch.</text>
+
+  <!-- Status badges -->
+  <circle cx="888" cy="630" r="8" fill="#1D9E75"/>
+  <text x="906" y="636" fill="#A7AAA4" font-family="'IBM Plex Mono', monospace" font-size="18">working</text>
+
+  <polygon points="1038,622 1046,638 1030,638" fill="#EF9F27"/>
+  <text x="1056" y="636" fill="#A7AAA4" font-family="'IBM Plex Mono', monospace" font-size="18">waiting</text>
+
+  <circle cx="1188" cy="630" r="8" fill="none" stroke="#888780" stroke-width="3"/>
+  <circle cx="1188" cy="630" r="3" fill="#888780"/>
+  <text x="1206" y="636" fill="#A7AAA4" font-family="'IBM Plex Mono', monospace" font-size="18">idle</text>
+
+  <!-- Footer -->
+  <line x1="868" y1="690" x2="1480" y2="690" stroke="#2A2D2F" stroke-width="1"/>
+  <text x="868" y="730" fill="#5D615D" font-family="'IBM Plex Sans', sans-serif" font-size="22">Ambient observability for AI coding sessions across tools, apps, and projects.</text>
+</svg>
