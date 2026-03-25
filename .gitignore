@@ -1,12 +1,6 @@
 # Rust
 /target
 **/*.rs.bk
-Cargo.lock
-
-# Node
-node_modules/
-dist/
-.vite/
 
 # IDE
 .idea/
@@ -22,8 +16,3 @@ Thumbs.db
 # Environment
 .env
 .env.local
-
-# SQLite
-*.db
-*.db-shm
-*.db-wal
