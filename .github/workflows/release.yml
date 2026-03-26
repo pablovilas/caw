@@ -27,10 +27,19 @@ jobs:
       # Build .app bundle and upload as release asset
       - name: Bundle macOS .app
         run: |
+          # Find the binary GoReleaser built
+          BINARY=$(find dist -name "caw" -type f -perm +111 | head -1)
+          if [ -z "$BINARY" ]; then
+            echo "Could not find caw binary in dist/"
+            ls -R dist/
+            exit 1
+          fi
+          echo "Found binary: $BINARY"
+
           APP="caw.app"
           rm -rf "$APP"
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-          cp dist/caw_darwin_arm64_v8.0/caw "$APP/Contents/MacOS/"
+          cp "$BINARY" "$APP/Contents/MacOS/"
           cp crates/caw/icons/caw.icns "$APP/Contents/Resources/"
           cp crates/caw/macos/Info.plist "$APP/Contents/"
 
