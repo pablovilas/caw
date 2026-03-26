@@ -1,5 +1,15 @@
 # Contributing to caw
 
+## Development
+
+```sh
+just setup    # Configure git hooks (pre-push runs lint + tests)
+just ci       # Run clippy + tests
+just build    # Build release binary
+just bundle   # Build macOS .app bundle
+just run      # Run in dev mode
+```
+
 ## Adding a New Plugin
 
 1. Create the crate:
@@ -37,7 +47,7 @@
    }
    ```
 
-4. Register in `caw-tui/src/main.rs` and `caw-app/src-tauri/src/lib.rs`:
+4. Register in `crates/caw/src/main.rs`:
    ```rust
    registry.register(Arc::new(MyPlugin::new()));
    ```
@@ -51,20 +61,4 @@
    ]
    ```
 
-6. Submit a PR.
-
-## Development
-
-```sh
-# Check all crates
-cargo check --workspace
-
-# Run TUI
-cargo run -p caw-tui -- tui
-
-# Run Tauri dev mode
-cd crates/caw-app/src-tauri && cargo tauri dev
-
-# Type-check frontend
-cd ui && npx tsc --noEmit
-```
+6. Run `just ci` to verify everything passes, then submit a PR.

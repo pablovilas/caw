@@ -23,11 +23,15 @@ Watch every coding agent from one quiet perch.
 
 ## Install
 
+### Homebrew (macOS)
+
 ```sh
-brew install pablovilas/tap/caw
+brew install --cask pablovilas/tap/caw
 ```
 
-Or build from source:
+This installs the `caw.app` to `/Applications` (Finder, Launchpad, Launch at Login) and the `caw` CLI binary.
+
+### From source
 
 ```sh
 cargo install --git https://github.com/pablovilas/caw.git
@@ -72,6 +76,7 @@ caw/
 just setup    # Configure git hooks
 just ci       # Run lint + tests
 just build    # Build release binary
+just bundle   # Build macOS .app bundle
 just run      # Run in dev mode
 ```
 

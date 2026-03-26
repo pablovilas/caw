@@ -28,17 +28,3 @@ changelog:
       - "^test:"
       - "^chore:"
 
-brews:
-  - name: caw
-    repository:
-      owner: pablovilas
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
-    homepage: "https://github.com/pablovilas/caw"
-    description: "Monitor your AI coding assistants"
-    license: "MIT"
-    install: |
-      bin.install "caw"
-    test: |
-      system "#{bin}/caw", "--help"

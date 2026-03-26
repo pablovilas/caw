@@ -46,6 +46,8 @@ bundle: build
     cp target/release/caw "$APP/Contents/MacOS/"
     cp crates/caw/icons/caw.icns "$APP/Contents/Resources/"
     cp crates/caw/macos/Info.plist "$APP/Contents/"
+    VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+    sed -i '' "s/0.0.0/$VERSION/g" "$APP/Contents/Info.plist"
     echo "Built $APP"
 
 # Test release locally (no publish)
