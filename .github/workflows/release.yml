@@ -80,6 +80,12 @@ jobs:
             app "caw.app"
             binary "#{appdir}/caw.app/Contents/MacOS/caw"
 
+            postflight do
+              system_command "/usr/bin/xattr",
+                             args: ["-cr", "#{appdir}/caw.app"],
+                             sudo: false
+            end
+
             zap trash: [
               "~/Library/Preferences/com.pablovilas.caw.plist",
             ]
